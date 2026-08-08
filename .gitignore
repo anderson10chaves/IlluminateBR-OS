@@ -1,0 +1,6 @@
+*.iso
+*.img
+/out/
+/work/
+.DS_Store
+*.log
