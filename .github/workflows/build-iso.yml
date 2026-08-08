@@ -16,9 +16,12 @@ jobs:
       - name: Build Arch ISO inside Docker
         run: |
           docker run --privileged -v $(pwd):/workspace -w /workspace archlinux:latest bash -c "
-            pacman-key --init && pacman-key --populate &&
+            sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/' /etc/pacman.conf &&
+            pacman-key --init &&
+            pacman-key --populate archlinux &&
             pacman -Syu --noconfirm archiso git squashfs-tools xorriso &&
-            cp /etc/pacman.d/mirrorlist /workspace/profile/mirrorlist 2>/dev/null || true &&
+            cp -r /usr/share/archiso/configs/releng/* /workspace/profile/ 2>/dev/null || true &&
+            cp /workspace/profile/packages.x86_64 /workspace/profile/packages.x86_64.custom 2>/dev/null || true &&
             mkarchiso -v -w /tmp/archiso-tmp -o /workspace/out /workspace/profile
           "
 
