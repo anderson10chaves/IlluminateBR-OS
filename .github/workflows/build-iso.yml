@@ -1,32 +1,39 @@
 name: Build IlluminateBR-OS ISO
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout Repositório
         uses: actions/checkout@v4
 
-      - name: Build Arch ISO inside Docker
-        run: |
-          docker run --privileged -v $(pwd):/workspace -w /workspace archlinux:latest bash -c "
-            sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/' /etc/pacman.conf &&
-            pacman-key --init &&
-            pacman-key --populate archlinux &&
-            pacman -Syu --noconfirm archiso git squashfs-tools xorriso &&
-            cp -r /usr/share/archiso/configs/releng/* /workspace/profile/ 2>/dev/null || true &&
-            cp /workspace/profile/packages.x86_64 /workspace/profile/packages.x86_64.custom 2>/dev/null || true &&
-            mkarchiso -v -w /tmp/archiso-tmp -o /workspace/out /workspace/profile
-          "
+      - name: Configurar Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
 
-      - name: Upload ISO Artifact
+      - name: Instalar Dependências de Compilação Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - name: Compilar Instalador e Estrutura
+        run: |
+          chmod +x build_iso.sh
+          ./build_iso.sh
+
+      - name: Compactar Artefatos do Build
+        run: |
+          tar -czvf illuminatebr-os-build.tar.gz iso_root/
+
+      - name: Upload do Artefato
         uses: actions/upload-artifact@v4
         with:
-          name: IlluminateBR-OS-ISO
-          path: out/*.iso
+          name: IlluminateBR-OS-Build
+          path: illuminatebr-os-build.tar.gz
