@@ -2,30 +2,33 @@
 
 set -e
 
+# Recebe o parâmetro do Flutter ('dev', 'devops' ou 'full'). Padrão: devops
+PROFILE="${1:-devops}"
+
 echo "==================================================================="
-echo "🚀 [IlluminateBR-OS] Configuração Master Dev, DevOps & Mídia"
+echo "🚀 [IlluminateBR-OS] Iniciando Instalação no Perfil: $PROFILE"
 echo "==================================================================="
 
 # -----------------------------------------------------------------------------
-# 1. Atualizar o sistema e habilitar Flathub
+# 1. Atualizar o sistema e repositórios
 # -----------------------------------------------------------------------------
-echo "📦 Atualizando sistema e habilitando repositórios..."
+echo "📦 Atualizando sistema e habilitando Flathub..."
 sudo pacman -Syu --noconfirm
 
 sudo pacman -S --needed --noconfirm flatpak
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
 # -----------------------------------------------------------------------------
-# 2. Ergonomia Visual (Redução do Cansaço Ocular / Night Light)
+# 2. Ergonomia Visual (Filtro de Luz Azul / Night Light)
 # -----------------------------------------------------------------------------
-echo "👁️ Aplicando configurações de ergonomia e filtro de luz azul..."
+echo "👁️ Configurando iluminação ergonômica..."
 gsettings set org.cinnamon.settings-daemon.plugins.color night-light-enabled true 2>/dev/null || true
 gsettings set org.cinnamon.settings-daemon.plugins.color night-light-temperature 3500 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
-# 3. Desempenho de Hardware e Otimização de RAM (auto-cpufreq + zRAM)
+# 3. Desempenho e Memória (auto-cpufreq + zRAM)
 # -----------------------------------------------------------------------------
-echo "⚡ Configurando utilitários de desempenho de CPU e compressão zRAM..."
+echo "⚡ Otimizando desempenho do processador e memória RAM (zRAM)..."
 sudo pacman -S --needed --noconfirm auto-cpufreq zram-generator || true
 sudo systemctl enable --now auto-cpufreq || true
 
@@ -36,18 +39,18 @@ compression-algorithm = zstd
 ZRAM' || true
 
 # -----------------------------------------------------------------------------
-# 4. Ativar Aceleração KVM para Emulador Android e Virtualização
+# 4. Virtualização e KVM
 # -----------------------------------------------------------------------------
-echo "⚡ Configurando virtualização KVM..."
+echo "⚡ Configurando aceleração KVM e suporte a máquinas virtuais..."
 sudo pacman -S --needed --noconfirm qemu-full virt-manager virt-viewer dnsmasq vde2 bridge-utils iptables-nft libguestfs || true
 sudo systemctl enable --now libvirtd || true
-sudo usermod -aG kvm $USER || true
-sudo usermod -aG libvirt $USER || true
+sudo usermod -aG kvm "$USER" || true
+sudo usermod -aG libvirt "$USER" || true
 
 # -----------------------------------------------------------------------------
-# 5. Pacotes Base, Compiladores e Utilitários CLI
+# 5. Ferramentas Base, Compiladores e Utilitários CLI
 # -----------------------------------------------------------------------------
-echo "🛠️ Instalando utilitários do sistema, base-devel, Git, Zsh e CLI..."
+echo "🛠️ Instalando utilitários essenciais de terminal e compiladores..."
 sudo pacman -S --needed --noconfirm \
     base-devel git curl wget gcc make cmake ninja clang pkg-config \
     fastfetch htop btop tmux neovim zsh util-linux cabextract fontconfig \
@@ -55,31 +58,28 @@ sudo pacman -S --needed --noconfirm \
     unzip zip tar xz fuse2 fuse3 || true
 
 # -----------------------------------------------------------------------------
-# 6. Java (OpenJDK 21 LTS) & Runtimes
+# 6. Runtimes Base: Java (LTS) & Web/Front-end (Node, Bun, Angular, Tailwind)
 # -----------------------------------------------------------------------------
 echo "☕ Instalando OpenJDK 21 LTS..."
 sudo pacman -S --needed --noconfirm jdk21-openjdk openjdk21-doc openjdk21-src || true
 
-# -----------------------------------------------------------------------------
-# 7. Front-end, Web & Marketing Digital (Node, Bun, Angular, Tailwind, Typescript)
-# -----------------------------------------------------------------------------
-echo "🌐 Instalando ferramentas de Front-end, Web e Marketing Digital..."
+echo "🌐 Instalando ecossistema Web & Front-end..."
 sudo pacman -S --needed --noconfirm nodejs npm yarn bun-bin html5-xml-support sass-c || true
 
-echo "🅰️ Instalando CLIs e utilitários globais da Web..."
+echo "🅰️ Instalando CLIs globais (Angular, Typescript, Tailwind)..."
 sudo npm install -g @angular/cli typescript tailwindcss live-server lighthouse || true
 
 # -----------------------------------------------------------------------------
-# 8. Flutter SDK & Android SDK Variables
+# 7. Configuração do Flutter SDK
 # -----------------------------------------------------------------------------
-echo "💙 Instalando dependências e SDK do Flutter..."
+echo "💙 Configurando Flutter SDK..."
 sudo pacman -S --needed --noconfirm gtk3 || true
 
 FLUTTER_DIR="$HOME/development"
 mkdir -p "$FLUTTER_DIR"
 
 if [ ! -d "$FLUTTER_DIR/flutter" ]; then
-    echo "⬇️ Baixando Flutter SDK..."
+    echo "⬇️ Clonando repositório do Flutter..."
     git clone https://github.com/flutter/flutter.git -b stable "$FLUTTER_DIR/flutter" || true
 fi
 
@@ -103,21 +103,9 @@ config_shell_env "$HOME/.zshrc"
 export PATH="$FLUTTER_DIR/flutter/bin:$PATH"
 
 # -----------------------------------------------------------------------------
-# 9. DevOps, Infraestrutura & Redes (Docker, K8s, Terraform, Ansible)
+# 8. Bancos de Dados Base
 # -----------------------------------------------------------------------------
-echo "☁️ Instalando suíte de DevOps, Kubernetes e Nuvem..."
-sudo pacman -S --needed --noconfirm \
-    docker docker-buildx docker-compose podman \
-    kubectl helm terraform ansible \
-    aws-cli nmap wireshark-qt wireguard-tools || true
-
-sudo systemctl enable --now docker || true
-sudo usermod -aG docker $USER || true
-
-# -----------------------------------------------------------------------------
-# 10. Bancos de Dados (PostgreSQL, MariaDB, SQLite)
-# -----------------------------------------------------------------------------
-echo "🐘 Instalando e configurando Bancos de Dados..."
+echo "🐘 Configurando serviços de Bancos de Dados..."
 sudo pacman -S --needed --noconfirm postgresql mariadb-clients sqlite || true
 
 if [ ! -d "/var/lib/postgres/data/base" ]; then
@@ -125,30 +113,55 @@ if [ ! -d "/var/lib/postgres/data/base" ]; then
 fi
 sudo systemctl enable --now postgresql || true
 
-# -----------------------------------------------------------------------------
-# 11. Gravação de Tela, Edição de Vídeo, Áudio & Design (Marketing & Criadores)
-# -----------------------------------------------------------------------------
-echo "🎥 Instalando suíte audiovisual e design..."
-sudo pacman -S --needed --noconfirm \
-    obs-studio kdenlive shotcut \
-    audacity gimp inkscape krita blender \
-    ffmpeg || true
+# =============================================================================
+# PERFIL: DEVOPS & INFRAESTRUTURA (Executado para 'devops' e 'full')
+# =============================================================================
+if [ "$PROFILE" = "devops" ] || [ "$PROFILE" = "full" ]; then
+    echo "☁️ [Módulo DevOps] Instalando Docker, Kubernetes, Terraform, AWS CLI e Redes..."
+    sudo pacman -S --needed --noconfirm \
+        docker docker-buildx docker-compose podman \
+        kubectl helm terraform ansible \
+        aws-cli nmap wireshark-qt wireguard-tools || true
+
+    sudo systemctl enable --now docker || true
+    sudo usermod -aG docker "$USER" || true
+fi
+
+# =============================================================================
+# PERFIL: CRIAÇÃO DE CONTEÚDO & MÍDIA (Executado apenas para 'full')
+# =============================================================================
+if [ "$PROFILE" = "full" ]; then
+    echo "🎥 [Módulo Mídia/Marketing] Instalando OBS, Kdenlive, Blender, GIMP e Editores..."
+    sudo pacman -S --needed --noconfirm \
+        obs-studio kdenlive shotcut \
+        audacity gimp inkscape krita blender \
+        ffmpeg || true
+fi
 
 # -----------------------------------------------------------------------------
-# 12. E-mail, Comunicação & Escritório
+# 9. Verificação do Auxiliar AUR (paru)
 # -----------------------------------------------------------------------------
-echo "📧 Instalando clientes de e-mail e produtividade..."
-sudo pacman -S --needed --noconfirm thunderbird libreoffice-fresh libreoffice-fresh-pt-br || true
-flatpak install -y flathub com.github.Mailspring || true
+if ! command -v paru &> /dev/null; then
+    echo "📦 Compilando e instalando helper do AUR (paru)..."
+    rm -rf /tmp/paru
+    git clone https://aur.archlinux.org/paru.git /tmp/paru
+    (cd /tmp/paru && makepkg -si --noconfirm) || true
+    rm -rf /tmp/paru
+fi
 
-# Fontes da Microsoft e Google Chrome/VS Code via paru
+# -----------------------------------------------------------------------------
+# 10. Aplicativos Desktop, IDEs & Produtividade
+# -----------------------------------------------------------------------------
+echo "📧 Instalando aplicativos de produtividade e navegadores..."
+sudo pacman -S --needed --noconfirm thunderbird libreoffice-fresh libreoffice-fresh-pt-br ttf-jetbrains-mono ttf-fira-code || true
+
+# Fontes MS, Chrome e VS Code via AUR
 paru -S --needed --noconfirm ttf-ms-fonts google-chrome visual-studio-code-bin || true
 
 # Cursor IDE (AppImage)
 echo "🤖 Instalando Cursor IDE..."
 CURSOR_DIR="$HOME/.local/bin"
-mkdir -p "$CURSOR_DIR"
-mkdir -p "$HOME/.local/share/applications"
+mkdir -p "$CURSOR_DIR" "$HOME/.local/share/applications"
 
 curl -L "https://downloader.cursor.sh/linux/appImage/x64" -o "$CURSOR_DIR/cursor.AppImage" || true
 chmod +x "$CURSOR_DIR/cursor.AppImage" || true
@@ -165,43 +178,36 @@ Comment=AI-first Code Editor
 Categories=Development;IDE;
 EOF
 
-# -----------------------------------------------------------------------------
-# 13. Apps de Comunicação & Dev via Flatpak
-# -----------------------------------------------------------------------------
-echo "📱 Instalando IDEs e utilitários via Flatpak..."
+# Aplicativos Flatpak
+echo "📱 Instalando suíte Flatpak..."
 flatpak install -y flathub com.google.AndroidStudio || true
 flatpak install -y flathub org.eclipse.Java || true
 flatpak install -y flathub com.aurora.whatsie || flatpak install -y flathub io.github.mickaelmendes50.ZapZap || flatpak install -y flathub io.github.khe2002.whatsdesk || true
 flatpak install -y flathub com.github.IsmaelMartinez.teams_for_linux || true
+flatpak install -y flathub com.github.Mailspring || true
 flatpak install -y flathub org.onlyoffice.desktopeditors || true
 flatpak install -y flathub com.spotify.Client || true
 flatpak install -y flathub com.slack.Slack || true
 flatpak install -y flathub io.dbeaver.DBeaverCommunity || true
 flatpak install -y flathub usebruno.Bruno || true
 
-# Fontes de Programação
-sudo pacman -S --needed --noconfirm ttf-jetbrains-mono ttf-fira-code || true
-
 # -----------------------------------------------------------------------------
-# 14. Cinnamon Desktop, Tema macOS (WhiteSur) & Starship Prompt
+# 11. Interface Cinnamon Desktop, Tema macOS (WhiteSur) & Shell
 # -----------------------------------------------------------------------------
-echo "🎨 Instalando Cinnamon Desktop, Starship Prompt e Tema macOS..."
+echo "🎨 Configurando ambiente Cinnamon, Tema WhiteSur e Prompt..."
 
-sudo pacman -S --needed --noconfirm cinnamon lightdm-slick-greeter || true
+sudo pacman -S --needed --noconfirm cinnamon lightdm-slick-greeter starship || true
 sudo systemctl enable lightdm || true
 
-# Efeito Genie (Minimizar estilo Mac)
+# Efeito Genie no Cinnamon
 gsettings set org.cinnamon.desktop.effect.instances minimize "'traditional'" 2>/dev/null || true
 
 # Oh My Zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
-    echo "🐚 Instalando Oh My Zsh..."
     RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || true
 fi
 
 # Starship Prompt
-sudo pacman -S --needed --noconfirm starship || true
-
 for rcfile in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rcfile" ]; then
         if ! grep -q 'starship init' "$rcfile"; then
@@ -214,7 +220,7 @@ for rcfile in "$HOME/.bashrc" "$HOME/.zshrc"; do
     fi
 done
 
-# Tema WhiteSur
+# Tema macOS WhiteSur
 mkdir -p "$HOME/.themes" "$HOME/.icons"
 rm -rf /tmp/WhiteSur-gtk /tmp/WhiteSur-icon
 git clone https://github.com/vinceliuice/WhiteSur-gtk-theme.git /tmp/WhiteSur-gtk --depth 1 || true
@@ -231,13 +237,7 @@ fi
 rm -rf /tmp/WhiteSur-gtk /tmp/WhiteSur-icon
 
 echo "==================================================================="
-echo "✅ Instalação concluída com sucesso no IlluminateBR-OS / CachyOS!"
-echo "👁️ Filtro de luz azul e ergonomia ativados."
-echo "⚡ Gerenciador de desempenho (auto-cpufreq) e zRAM ativos."
-echo "🌐 Front-end (Angular, Node, Bun, Tailwind) configurados."
-echo "☁️ DevOps (Docker, K8s, Terraform, AWS CLI) instalados."
-echo "🎥 OBS Studio, Kdenlive, Blender e GIMP prontos."
-echo "💙 Flutter configurado em $HOME/development/flutter."
+echo "✅ Instalação do Perfil '$PROFILE' Concluída com Sucesso!"
 echo "==================================================================="
-echo "⚠️ REINICIE o computador para aplicar todas as permissões e sessões."
+echo "⚠️ Por favor, REINICIE o sistema para validar as permissões de grupo e inicializar a sessão Cinnamon."
 echo "==================================================================="
