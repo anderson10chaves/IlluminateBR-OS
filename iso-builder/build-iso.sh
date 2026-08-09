@@ -9,6 +9,7 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 
 echo "⚙️ Configurando o live-build para Debian..."
+# O parâmetro --security false desativa o caminho legado bookworm/updates
 lb config \
     --debian-installer false \
     --mode debian \
@@ -17,10 +18,8 @@ lb config \
     --archive-areas "main contrib non-free non-free-firmware" \
     --mirror-bootstrap "http://deb.debian.org/debian/" \
     --mirror-chroot "http://deb.debian.org/debian/" \
-    --mirror-chroot-security "http://security.debian.org/debian-security" \
     --mirror-binary "http://deb.debian.org/debian/" \
-    --mirror-binary-security "http://security.debian.org/debian-security" \
-    --security true \
+    --security false \
     --bootloader syslinux \
     --win32-loader false
 
@@ -51,6 +50,16 @@ wget
 curl
 git
 zsh
+EOF
+
+# Injeta a linha de repositório correta de segurança do Bookworm diretamente nas fontes do APT
+mkdir -p config/archives/
+cat << 'EOF' > config/archives/security.list.chroot
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+EOF
+
+cat << 'EOF' > config/archives/security.list.binary
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
 # Configuração de Auto-Login no LightDM
