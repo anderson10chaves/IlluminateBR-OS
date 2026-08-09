@@ -9,14 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-installer:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Instalar Dependências do Sistema para Build Linux
+      - name: Instalar Dependências de Build Linux
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
@@ -32,11 +31,63 @@ jobs:
           flutter pub get
           flutter build linux --release
 
-      - name: Compactar Artefatos da Build
-        run: |
-          tar -czvf IlluminateBR-OS-Build.tar.gz installer/build/linux/x64/release/bundle/ scripts/
+      - name: Salvar Artefatos do Instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-bin
+          path: installer/build/linux/x64/release/bundle/
 
-      - name: Criar Release e Fazer Upload do Artefato
+  build-iso:
+    needs: build-installer
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Instalar archiso e ferramentas
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm archiso git
+
+      - name: Baixar Artefato do Instalador Flutter
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-bin
+          path: profile/airootfs/usr/bin/installer/
+
+      - name: Gerar ISO bootável
+        run: |
+          mkdir -p /tmp/iso-out
+          if [ -d "profile" ]; then
+            mkarchiso -v -w /tmp/archiso-tmp -o /tmp/iso-out profile/
+          else
+            echo "Perfil do archiso não encontrado na pasta profile/"
+            exit 1
+          fi
+
+      - name: Renomear ISO gerada
+        run: |
+          mv /tmp/iso-out/*.iso /tmp/iso-out/IlluminateBR-OS-v1.0.0-x86_64.iso
+
+      - name: Upload da ISO para Artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: illuminatebr-iso
+          path: /tmp/iso-out/IlluminateBR-OS-v1.0.0-x86_64.iso
+
+  release:
+    needs: [build-installer, build-iso]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar ISO do Job Anterior
+        uses: actions/download-artifact@v4
+        with:
+          name: illuminatebr-iso
+
+      - name: Criar Release e Fazer Upload da ISO (.iso)
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v1.0.0
@@ -49,6 +100,6 @@ jobs:
             - Instalador Flutter com seletor de perfis (Dev, DevOps, Mídia)
             - Otimizações de Ergonomia Visual e Desempenho (zRAM + CPU)
           files: |
-            IlluminateBR-OS-Build.tar.gz
+            IlluminateBR-OS-v1.0.0-x86_64.iso
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
