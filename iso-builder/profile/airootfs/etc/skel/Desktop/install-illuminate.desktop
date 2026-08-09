@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Instalar o IlluminateBR-OS
+Comment=Inicie o instalador gráfico do sistema
+Exec=sudo calamares -d
+Icon=system-software-install
+Terminal=false
+StartupNotify=true
+Categories=System;

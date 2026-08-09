@@ -1,0 +1,19 @@
+---
+componentName:  illuminateos
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+
+strings:
+    productName:         "IlluminateBR-OS"
+    shortProductName:    "IlluminateOS"
+    version:             "1.0.0"
+    shortVersion:        "1.0"
+    versionedName:       "IlluminateBR-OS 1.0.0"
+    shortVersionedName:  "IlluminateOS 1.0"
+    bootloaderEntryName: "IlluminateBR-OS"
+
+style:
+    SidebarBackground:    "#1e1e2e"
+    SidebarText:          "#cdd6f4"
+    SidebarTextSelect:    "#89b4fa"
+    SidebarTextSelectBG:  "#313244"
