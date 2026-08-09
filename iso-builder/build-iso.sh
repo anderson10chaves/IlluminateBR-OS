@@ -5,6 +5,10 @@ echo "==================================================================="
 echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
 echo "==================================================================="
 
+echo "🛠️ Instalando utilitarios de ISO/Boot no Host (GitHub Runner)..."
+sudo apt-get update -y
+sudo apt-get install -y syslinux-utils xorriso mtools grub-pc-bin grub-efi-amd64-bin
+
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
@@ -41,7 +45,7 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build com GRUB EFI/BIOS Híbrido..."
+echo "⚙️ Configurando o live-build com GRUB EFI..."
 lb config \
     --debian-installer false \
     --mode debian \
