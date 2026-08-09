@@ -55,25 +55,20 @@ lb config \
     --bootloader syslinux \
     --win32-loader false
 
-# Hook do Chroot para copiar os arquivos de boot para /root/isolinux/ onde o lb espera encontrar
-mkdir -p config/hooks/normal/
-cat << 'EOF' > config/hooks/normal/0100-fix-isolinux-paths.hook.chroot
-#!/bin/sh
-set -e
+# Garante a existencia da estrutura isolinux no host e no includes.chroot
+sudo mkdir -p /root/isolinux
+mkdir -p config/includes.chroot/root/isolinux
 
-echo "[HOOK] Vinculando arquivos do ISOLINUX/Syslinux para /root/isolinux..."
-mkdir -p /root/isolinux
-
-if [ -f /usr/lib/ISOLINUX/isolinux.bin ]; then
-    cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/
+# Copia arquivos do syslinux/isolinux do host do GitHub Actions para evitar o erro de cp
+if [ -d /usr/lib/ISOLINUX ]; then
+    sudo cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/ 2>/dev/null || true
+    cp /usr/lib/ISOLINUX/isolinux.bin config/includes.chroot/root/isolinux/ 2>/dev/null || true
 fi
 
 if [ -d /usr/lib/syslinux/modules/bios ]; then
-    cp /usr/lib/syslinux/modules/bios/* /root/isolinux/
+    sudo cp /usr/lib/syslinux/modules/bios/* /root/isolinux/ 2>/dev/null || true
+    cp /usr/lib/syslinux/modules/bios/* config/includes.chroot/root/isolinux/ 2>/dev/null || true
 fi
-EOF
-
-chmod +x config/hooks/normal/0100-fix-isolinux-paths.hook.chroot
 
 mkdir -p config/package-lists/
 cat << 'EOF' > config/package-lists/illuminate.list.chroot
