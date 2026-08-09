@@ -52,7 +52,7 @@ git
 zsh
 EOF
 
-# Repositório correto de segurança do Bookworm
+# Estrutura limpa para os repositórios de segurança no Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
@@ -62,7 +62,7 @@ cat << 'EOF' > config/archives/security.list.binary
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
-# Configuração de Auto-Login no LightDM
+# Auto-Login no LightDM
 mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
