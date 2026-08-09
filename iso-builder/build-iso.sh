@@ -55,6 +55,26 @@ lb config \
     --bootloader syslinux \
     --win32-loader false
 
+# Hook do Chroot para copiar os arquivos de boot para /root/isolinux/ onde o lb espera encontrar
+mkdir -p config/hooks/normal/
+cat << 'EOF' > config/hooks/normal/0100-fix-isolinux-paths.hook.chroot
+#!/bin/sh
+set -e
+
+echo "[HOOK] Vinculando arquivos do ISOLINUX/Syslinux para /root/isolinux..."
+mkdir -p /root/isolinux
+
+if [ -f /usr/lib/ISOLINUX/isolinux.bin ]; then
+    cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/
+fi
+
+if [ -d /usr/lib/syslinux/modules/bios ]; then
+    cp /usr/lib/syslinux/modules/bios/* /root/isolinux/
+fi
+EOF
+
+chmod +x config/hooks/normal/0100-fix-isolinux-paths.hook.chroot
+
 mkdir -p config/package-lists/
 cat << 'EOF' > config/package-lists/illuminate.list.chroot
 linux-image-amd64
