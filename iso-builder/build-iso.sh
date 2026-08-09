@@ -5,6 +5,19 @@ echo "==================================================================="
 echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
 echo "==================================================================="
 
+echo "🛠️ Instalando dependencias de bootloader na maquina Host..."
+sudo apt-get update -y
+sudo apt-get install -y isolinux syslinux-common syslinux-utils
+
+echo "🛠️ Populando /root/isolinux no Host para atender o live-build..."
+sudo mkdir -p /root/isolinux
+if [ -d /usr/lib/ISOLINUX ]; then
+    sudo cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/
+fi
+if [ -d /usr/lib/syslinux/modules/bios ]; then
+    sudo cp /usr/lib/syslinux/modules/bios/* /root/isolinux/
+fi
+
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
@@ -54,21 +67,6 @@ lb config \
     --security false \
     --bootloader syslinux \
     --win32-loader false
-
-# Garante a existencia da estrutura isolinux no host e no includes.chroot
-sudo mkdir -p /root/isolinux
-mkdir -p config/includes.chroot/root/isolinux
-
-# Copia arquivos do syslinux/isolinux do host do GitHub Actions para evitar o erro de cp
-if [ -d /usr/lib/ISOLINUX ]; then
-    sudo cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/ 2>/dev/null || true
-    cp /usr/lib/ISOLINUX/isolinux.bin config/includes.chroot/root/isolinux/ 2>/dev/null || true
-fi
-
-if [ -d /usr/lib/syslinux/modules/bios ]; then
-    sudo cp /usr/lib/syslinux/modules/bios/* /root/isolinux/ 2>/dev/null || true
-    cp /usr/lib/syslinux/modules/bios/* config/includes.chroot/root/isolinux/ 2>/dev/null || true
-fi
 
 mkdir -p config/package-lists/
 cat << 'EOF' > config/package-lists/illuminate.list.chroot
