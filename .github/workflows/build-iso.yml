@@ -56,8 +56,8 @@ jobs:
         run: |
           cp -r /usr/share/archiso/configs/releng/ /tmp/archiso-profile
           
-          # Adiciona suporte grafico basico e dependencias da interface Flutter
-          echo -e "\nxorg-server\nxorg-xinit\nxf86-video-vesa\nopenbox\ngtk3\nliblzma" >> /tmp/archiso-profile/packages.x86_64
+          # Adiciona pacotes graficos necessarios (usando 'xz' em vez de 'liblzma')
+          echo -e "\nxorg-server\nxorg-xinit\nxf86-video-vesa\nopenbox\ngtk3\nxz" >> /tmp/archiso-profile/packages.x86_64
 
           mkdir -p /tmp/archiso-profile/airootfs/usr/bin/installer/
           mkdir -p /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
@@ -73,7 +73,7 @@ jobs:
           cp -r scripts /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
           chmod +x /tmp/archiso-profile/airootfs/usr/bin/installer/illuminatebr_os
 
-          # Configura o Xorg para disparar o instalador Flutter automaticamente no boot
+          # Configura o Xorg para disparar o instalador Flutter no boot
           echo "/usr/bin/installer/illuminatebr_os" > /tmp/archiso-profile/airootfs/root/.xinitrc
           echo 'if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then startx; fi' >> /tmp/archiso-profile/airootfs/root/.bashrc
 
