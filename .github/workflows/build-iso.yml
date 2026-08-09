@@ -56,7 +56,7 @@ jobs:
         run: |
           cp -r /usr/share/archiso/configs/releng/ /tmp/archiso-profile
           
-          # Pacotes necessarios para janela grafica no Live Boot
+          # Adiciona suporte grafico basico e dependencias da interface Flutter
           echo -e "\nxorg-server\nxorg-xinit\nxf86-video-vesa\nopenbox\ngtk3\nliblzma" >> /tmp/archiso-profile/packages.x86_64
 
           mkdir -p /tmp/archiso-profile/airootfs/usr/bin/installer/
@@ -73,10 +73,8 @@ jobs:
           cp -r scripts /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
           chmod +x /tmp/archiso-profile/airootfs/usr/bin/installer/illuminatebr_os
 
-          # Configura para o Xorg abrir direto o app Flutter em modo janela
+          # Configura o Xorg para disparar o instalador Flutter automaticamente no boot
           echo "/usr/bin/installer/illuminatebr_os" > /tmp/archiso-profile/airootfs/root/.xinitrc
-
-          # Inicia o Xorg automaticamente ao fazer login no TTY1
           echo 'if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then startx; fi' >> /tmp/archiso-profile/airootfs/root/.bashrc
 
       - name: Gerar ISO bootável
@@ -86,7 +84,11 @@ jobs:
 
       - name: Renomear ISO gerada
         run: |
-          mv /tmp/iso-out/*.iso /tmp/iso-out/IlluminateBR-OS-v1.0.0-x86_64.iso
+          # Procura qualquer .iso dentro do /tmp/iso-out e renomeia
+          ISO_FILE=$(find /tmp/iso-out -name "*.iso" | head -n 1)
+          if [ -n "$ISO_FILE" ]; then
+            mv "$ISO_FILE" /tmp/iso-out/IlluminateBR-OS-v1.0.0-x86_64.iso
+          fi
 
       - name: Upload da ISO para Artefatos
         uses: actions/upload-artifact@v4
@@ -109,7 +111,7 @@ jobs:
           tag_name: v1.0.0
           name: "IlluminateBR-OS v1.0.0 Stable"
           body: |
-            🚀 **Release Oficial do IlluminateBR-OS (Modo Gráfico Nativo)**
+            🚀 **Release Oficial do IlluminateBR-OS (Live GUI)**
           files: |
             IlluminateBR-OS-v1.0.0-x86_64.iso
         env:
