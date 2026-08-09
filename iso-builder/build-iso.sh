@@ -15,6 +15,12 @@ lb config \
     --architectures amd64 \
     --distribution bookworm \
     --archive-areas "main contrib non-free non-free-firmware" \
+    --mirror-bootstrap "http://deb.debian.org/debian/" \
+    --mirror-chroot "http://deb.debian.org/debian/" \
+    --mirror-chroot-security "http://security.debian.org/debian-security" \
+    --mirror-binary "http://deb.debian.org/debian/" \
+    --mirror-binary-security "http://security.debian.org/debian-security" \
+    --security true \
     --bootloader syslinux \
     --win32-loader false
 
@@ -47,7 +53,7 @@ git
 zsh
 EOF
 
-# Configuração de Auto-Login
+# Configuração de Auto-Login no LightDM
 mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
