@@ -9,7 +9,6 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 
 echo "⚙️ Configurando o live-build para Debian..."
-# O parâmetro --security false desativa o caminho legado bookworm/updates
 lb config \
     --debian-installer false \
     --mode debian \
@@ -20,6 +19,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
+    --contents false \
     --bootloader syslinux \
     --win32-loader false
 
@@ -52,7 +52,7 @@ git
 zsh
 EOF
 
-# Injeta a linha de repositório correta de segurança do Bookworm diretamente nas fontes do APT
+# Injeta o repositório correto de segurança do Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
