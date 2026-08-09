@@ -9,7 +9,14 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
 
-echo "⚙️ Configurando o live-build para Debian..."
+echo "⚙️ Aplicando correção no script interno do live-build para Debian Bookworm..."
+# Patch direto no script interno do live-build para neutralizar o download do Contents-amd64.gz
+LB_LINUX_IMG_SCRIPT="/usr/lib/live/build/chroot_linux-image"
+if [ -f "$LB_LINUX_IMG_SCRIPT" ]; then
+    sudo sed -i 's/wget.*/touch chroot\/root\/Contents-amd64.gz/g' "$LB_LINUX_IMG_SCRIPT" || true
+fi
+
+echo "⚙️ Configurando o live-build..."
 lb config \
     --debian-installer false \
     --mode debian \
@@ -22,20 +29,6 @@ lb config \
     --security false \
     --bootloader syslinux \
     --win32-loader false
-
-# Crias pastas de hooks do live-build
-mkdir -p config/hooks/normal/
-
-# HOOK DEFINITIVO: Intercepta a checagem do Contents-amd64.gz antes que o lb tente o wget
-cat << 'EOF' > config/hooks/normal/0000-override-contents.hook.chroot
-#!/bin/sh
-set -e
-
-# Garante que qualquer tentativa de ler Contents-amd64.gz encontre um arquivo valido e vazio
-mkdir -p /root
-touch /root/Contents-amd64.gz
-EOF
-chmod +x config/hooks/normal/0000-override-contents.hook.chroot
 
 mkdir -p config/package-lists/
 cat << 'EOF' > config/package-lists/illuminate.list.chroot
@@ -65,7 +58,7 @@ git
 zsh
 EOF
 
-# Repositório correto de segurança do Bookworm
+# Repositório oficial de segurança do Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
@@ -75,7 +68,7 @@ cat << 'EOF' > config/archives/security.list.binary
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
-# Auto-Login no LightDM
+# Configuração de Auto-Login no LightDM
 mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
