@@ -5,19 +5,6 @@ echo "==================================================================="
 echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
 echo "==================================================================="
 
-echo "🛠️ Instalando dependencias de bootloader na maquina Host..."
-sudo apt-get update -y
-sudo apt-get install -y isolinux syslinux-common syslinux-utils
-
-echo "🛠️ Populando /root/isolinux no Host para atender o live-build..."
-sudo mkdir -p /root/isolinux
-if [ -d /usr/lib/ISOLINUX ]; then
-    sudo cp /usr/lib/ISOLINUX/isolinux.bin /root/isolinux/
-fi
-if [ -d /usr/lib/syslinux/modules/bios ]; then
-    sudo cp /usr/lib/syslinux/modules/bios/* /root/isolinux/
-fi
-
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
@@ -54,7 +41,7 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build..."
+echo "⚙️ Configurando o live-build com GRUB (substitui o syslinux incompativel)..."
 lb config \
     --debian-installer false \
     --mode debian \
@@ -65,7 +52,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --bootloader syslinux \
+    --bootloader grub-pc \
     --win32-loader false
 
 mkdir -p config/package-lists/
@@ -75,10 +62,9 @@ live-boot
 systemd-sysv
 firmware-linux
 firmware-linux-nonfree
-isolinux
-syslinux
-syslinux-common
-syslinux-utils
+grub-pc
+grub-efi-amd64
+grub-common
 cinnamon-core
 lightdm
 lightdm-gtk-greeter
