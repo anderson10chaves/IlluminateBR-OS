@@ -84,7 +84,6 @@ jobs:
 
       - name: Renomear ISO gerada
         run: |
-          # Procura qualquer .iso dentro do /tmp/iso-out e renomeia
           ISO_FILE=$(find /tmp/iso-out -name "*.iso" | head -n 1)
           if [ -n "$ISO_FILE" ]; then
             mv "$ISO_FILE" /tmp/iso-out/IlluminateBR-OS-v1.0.0-x86_64.iso
