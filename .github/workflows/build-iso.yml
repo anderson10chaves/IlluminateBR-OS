@@ -52,10 +52,17 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git
 
-      - name: Preparar Perfil do Archiso
+      - name: Preparar Perfil ISO com Ambiente Gráfico (GUI Live)
         run: |
           cp -r /usr/share/archiso/configs/releng/ /tmp/archiso-profile
+          
+          # Adiciona pacotes graficos Xorg, LightDM e dependencias do Flutter no live system
+          echo -e "\nxorg-server\nxorg-xinit\nlightdm\nlightdm-gtk-greeter\nopenbox\nnetworkmanager\npolkit\ngtk3\nliblzma" >> /tmp/archiso-profile/packages.x86_64
+
+          # Prepara pastas do sistema live
           mkdir -p /tmp/archiso-profile/airootfs/usr/bin/installer/
+          mkdir -p /tmp/archiso-profile/airootfs/etc/autostart/
+          mkdir -p /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
 
       - name: Baixar Artefato do Instalador Flutter
         uses: actions/download-artifact@v4
@@ -63,15 +70,27 @@ jobs:
           name: installer-bin
           path: /tmp/archiso-profile/airootfs/usr/bin/installer/
 
-      - name: Injetar Scripts e Configurar Auto-Execução
+      - name: Injetar Scripts e Autostart Gráfico
         run: |
-          mkdir -p /tmp/archiso-profile/airootfs/root/IlluminateBR-OS
           cp -r scripts /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
           
-          # Injeta chamada automatica no login do live root
-          echo "if [ -f /usr/bin/installer/illuminatebr_os ]; then" >> /tmp/archiso-profile/airootfs/root/.bashrc
-          echo "  /usr/bin/installer/illuminatebr_os" >> /tmp/archiso-profile/airootfs/root/.bashrc
-          echo "fi" >> /tmp/archiso-profile/airootfs/root/.bashrc
+          # Garante permissao de execucao no binario Flutter
+          chmod +x /tmp/archiso-profile/airootfs/usr/bin/installer/illuminatebr_os
+
+          # Cria atalho desktop de autostart grafico
+          cat << 'DESKTOP' > /tmp/archiso-profile/airootfs/etc/xdg/autostart/illuminatebr-installer.desktop
+[Desktop Entry]
+Type=Application
+Name=IlluminateBR-OS Installer
+Exec=/usr/bin/installer/illuminatebr_os
+Icon=system-software-install
+Terminal=false
+Categories=System;
+DESKTOP
+
+          # Habilita entrada automatica no Xorg ao dar boot no live mode
+          echo "exec openbox-session" > /tmp/archiso-profile/airootfs/root/.xinitrc
+          echo "if [ -z \"\$DISPLAY\" ] && [ \"\$(tty)\" = \"/dev/tty1\" ]; then startx; fi" >> /tmp/archiso-profile/airootfs/root/.bashrc
 
       - name: Gerar ISO bootável
         run: |
@@ -103,9 +122,10 @@ jobs:
           tag_name: v1.0.0
           name: "IlluminateBR-OS v1.0.0 Stable"
           body: |
-            🚀 **Release Oficial do IlluminateBR-OS**
+            🚀 **Release Oficial do IlluminateBR-OS (Live GUI)**
 
             - Kernel Otimizado / Base Arch Linux
+            - Boot Live 100% Gráfico com instalador automático
             - Interface Cinnamon com visual e efeitos estilo macOS
             - Instalador Flutter com seletor de perfis (Dev, DevOps, Mídia)
             - Otimizações de Ergonomia Visual e Desempenho (zRAM + CPU)
