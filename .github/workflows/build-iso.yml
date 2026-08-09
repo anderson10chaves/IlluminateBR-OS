@@ -44,10 +44,10 @@ jobs:
       - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Instalar Dependências do Debian Live-Build
+      - name: Instalar Dependências do Debian Live-Build e Bootloaders no Host
         run: |
           sudo apt-get update
-          sudo apt-get install -y live-build debootstrap systemd-container
+          sudo apt-get install -y live-build debootstrap systemd-container isolinux syslinux-utils xorriso mtools grub-pc-bin grub-efi-amd64-bin
 
       - name: Baixar Artefato do Instalador Flutter
         uses: actions/download-artifact@v4
@@ -60,7 +60,7 @@ jobs:
           cd iso-builder
           chmod +x build-iso.sh
           chmod +x config/includes.chroot/usr/bin/installer/illuminatebr_os 2>/dev/null || true
-          sudo ./build-iso.sh
+          sudo -E PATH="$PATH" ./build-iso.sh
 
       - name: Mover e Renomear ISO Gerada
         run: |
