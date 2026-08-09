@@ -9,12 +9,28 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
 
-echo "⚙️ Aplicando correção no script interno do live-build para Debian Bookworm..."
-# Patch direto no script interno do live-build para neutralizar o download do Contents-amd64.gz
-LB_LINUX_IMG_SCRIPT="/usr/lib/live/build/chroot_linux-image"
-if [ -f "$LB_LINUX_IMG_SCRIPT" ]; then
-    sudo sed -i 's/wget.*/touch chroot\/root\/Contents-amd64.gz/g' "$LB_LINUX_IMG_SCRIPT" || true
-fi
+echo "🛠️ Criando wrapper do wget para burlar o Contents-amd64.gz do Debian 12..."
+BIN_DIR="$(pwd)/bin"
+mkdir -p "$BIN_DIR"
+
+# Cria um executável falso para interceptar o wget específico do Contents-amd64.gz
+cat << 'EOF' > "$BIN_DIR/wget"
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"Contents-amd64.gz"* ]]; then
+        echo "[MOCK WGET] Interceptado download de Contents-amd64.gz. Gerando arquivo mock..."
+        touch Contents-amd64
+        gzip -f Contents-amd64
+        exit 0
+    fi
+done
+
+# Executa o wget original do sistema para qualquer outra URL
+exec /usr/bin/wget "$@"
+EOF
+
+chmod +x "$BIN_DIR/wget"
+export PATH="$BIN_DIR:$PATH"
 
 echo "⚙️ Configurando o live-build..."
 lb config \
@@ -58,7 +74,7 @@ git
 zsh
 EOF
 
-# Repositório oficial de segurança do Bookworm
+# Repositório de segurança oficial do Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
@@ -68,7 +84,7 @@ cat << 'EOF' > config/archives/security.list.binary
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
-# Configuração de Auto-Login no LightDM
+# Auto-Login no LightDM
 mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
