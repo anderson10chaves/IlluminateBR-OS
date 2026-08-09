@@ -9,11 +9,10 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 rm -rf config/
 
-echo "🛠️ Criando wrapper do wget com suporte a stdout para o Contents-amd64.gz..."
+echo "🛠️ Criando wrapper do wget para interceptar Contents-amd64.gz..."
 BIN_DIR="$(pwd)/bin"
 mkdir -p "$BIN_DIR"
 
-# Wrapper ajustado para retornar fluxo gzip valido em stdout ou arquivo local
 cat << 'EOF' > "$BIN_DIR/wget"
 #!/usr/bin/env bash
 is_contents=false
@@ -26,21 +25,16 @@ done
 
 if [ "$is_contents" = true ]; then
     echo "[MOCK WGET] Interceptado download do Contents-amd64.gz." >&2
-    
-    # Se o wget estiver sendo chamado com -O - (redirecionando para stdout/pipe)
     for arg in "$@"; do
         if [[ "$arg" == "-O" || "$arg" == "-O-" ]]; then
             printf "" | gzip -c
             exit 0
         fi
     done
-
-    # Caso nao use -O -, gera o arquivo gzip no diretorio atual
     printf "" | gzip -c > Contents-amd64.gz
     exit 0
 fi
 
-# Executa o wget original do sistema para todas as outras requisicoes
 exec /usr/bin/wget "$@"
 EOF
 
@@ -68,6 +62,10 @@ live-boot
 systemd-sysv
 firmware-linux
 firmware-linux-nonfree
+isolinux
+syslinux
+syslinux-common
+syslinux-utils
 cinnamon-core
 lightdm
 lightdm-gtk-greeter
@@ -89,7 +87,7 @@ git
 zsh
 EOF
 
-# Repositório de segurança oficial do Bookworm
+# Repositório de segurança do Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
