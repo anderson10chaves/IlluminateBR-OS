@@ -52,26 +52,26 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git
 
-      - name: Preparar Perfil do Archiso e Copiar Arquivos
+      - name: Preparar Perfil do Archiso
         run: |
-          # 1. Copia o perfil base oficial do Arch Linux
           cp -r /usr/share/archiso/configs/releng/ /tmp/archiso-profile
-
-          # 2. Copia o instalador Flutter para dentro do sistema live
           mkdir -p /tmp/archiso-profile/airootfs/usr/bin/installer/
-          
+
       - name: Baixar Artefato do Instalador Flutter
         uses: actions/download-artifact@v4
         with:
           name: installer-bin
           path: /tmp/archiso-profile/airootfs/usr/bin/installer/
 
-      - name: Injetar Scripts Personalizados
+      - name: Injetar Scripts e Configurar Auto-Execução
         run: |
-          # 3. Copia os scripts do projeto para a raiz do live ISO
           mkdir -p /tmp/archiso-profile/airootfs/root/IlluminateBR-OS
           cp -r scripts /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
-          cp -r build_iso.sh /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/ 2>/dev/null || true
+          
+          # Injeta chamada automatica no login do live root
+          echo "if [ -f /usr/bin/installer/illuminatebr_os ]; then" >> /tmp/archiso-profile/airootfs/root/.bashrc
+          echo "  /usr/bin/installer/illuminatebr_os" >> /tmp/archiso-profile/airootfs/root/.bashrc
+          echo "fi" >> /tmp/archiso-profile/airootfs/root/.bashrc
 
       - name: Gerar ISO bootável
         run: |
