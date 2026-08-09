@@ -41,7 +41,7 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build com GRUB (substitui o syslinux incompativel)..."
+echo "⚙️ Configurando o live-build com GRUB EFI/BIOS Híbrido..."
 lb config \
     --debian-installer false \
     --mode debian \
@@ -52,7 +52,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --bootloader grub-pc \
+    --bootloader grub-efi \
     --win32-loader false
 
 mkdir -p config/package-lists/
@@ -62,8 +62,8 @@ live-boot
 systemd-sysv
 firmware-linux
 firmware-linux-nonfree
-grub-pc
 grub-efi-amd64
+grub-pc-bin
 grub-common
 cinnamon-core
 lightdm
