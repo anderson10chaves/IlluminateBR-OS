@@ -7,26 +7,35 @@ echo "==================================================================="
 
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
-
-# Limpa configurações salvas anteriores que possam estar corrompidas
 rm -rf config/
 
 echo "⚙️ Configurando o live-build para Debian..."
-# Usamos apenas flags oficiais e válidas do live-build no Debian 12
 lb config \
     --debian-installer false \
     --mode debian \
     --architectures amd64 \
     --distribution bookworm \
     --archive-areas "main contrib non-free non-free-firmware" \
-    --parent-archive-areas "main contrib non-free non-free-firmware" \
     --mirror-bootstrap "http://deb.debian.org/debian/" \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --apt-indices false \
     --bootloader syslinux \
     --win32-loader false
+
+# Crias pastas de hooks do live-build
+mkdir -p config/hooks/normal/
+
+# HOOK DEFINITIVO: Intercepta a checagem do Contents-amd64.gz antes que o lb tente o wget
+cat << 'EOF' > config/hooks/normal/0000-override-contents.hook.chroot
+#!/bin/sh
+set -e
+
+# Garante que qualquer tentativa de ler Contents-amd64.gz encontre um arquivo valido e vazio
+mkdir -p /root
+touch /root/Contents-amd64.gz
+EOF
+chmod +x config/hooks/normal/0000-override-contents.hook.chroot
 
 mkdir -p config/package-lists/
 cat << 'EOF' > config/package-lists/illuminate.list.chroot
@@ -56,7 +65,7 @@ git
 zsh
 EOF
 
-# Repositório oficial de segurança do Bookworm sem sufixo legados (/updates)
+# Repositório correto de segurança do Bookworm
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/security.list.chroot
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
@@ -74,12 +83,6 @@ autologin-guest=false
 autologin-user=user
 autologin-user-timeout=0
 EOF
-
-# Hack limpo: cria o arquivo localmente antes do lb build pedir ele pro servidor
-mkdir -p .build
-touch .build/chroot_sources
-mkdir -p chroot/root
-touch chroot/root/Contents-amd64.gz
 
 echo "📦 Iniciando compilação da ISO..."
 lb build
