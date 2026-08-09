@@ -16,9 +16,7 @@ lb config \
     --distribution bookworm \
     --archive-areas "main contrib non-free non-free-firmware" \
     --bootloader syslinux \
-    --win32-loader false \
-    --package-lists live \
-    --image-name "IlluminateBR-OS-Debian-x86_64"
+    --win32-loader false
 
 mkdir -p config/package-lists/
 
