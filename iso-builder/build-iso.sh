@@ -9,10 +9,9 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 
 echo "⚙️ Configurando o live-build para Debian..."
-# Mudamos para --mode ubuntu mantendo a distro bookworm para ignorar o hook do Contents-amd64.gz
 lb config \
     --debian-installer false \
-    --mode ubuntu \
+    --mode debian \
     --architectures amd64 \
     --distribution bookworm \
     --archive-areas "main contrib non-free non-free-firmware" \
@@ -22,6 +21,15 @@ lb config \
     --security false \
     --bootloader syslinux \
     --win32-loader false
+
+# Burlar a busca do Contents-amd64.gz injetando o arquivo vazio antes que o lb verifique
+mkdir -p config/hooks/normal/
+cat << 'EOF' > config/hooks/normal/0001-fix-contents.hook.binary
+#!/bin/sh
+mkdir -p chroot/root/
+touch chroot/root/Contents-amd64.gz
+EOF
+chmod +x config/hooks/normal/0001-fix-contents.hook.binary
 
 mkdir -p config/package-lists/
 
@@ -52,7 +60,7 @@ git
 zsh
 EOF
 
-# Repositórios do Debian Bookworm + Segurança
+# Repositório correto de segurança
 mkdir -p config/archives/
 cat << 'EOF' > config/archives/debian.list.chroot
 deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
