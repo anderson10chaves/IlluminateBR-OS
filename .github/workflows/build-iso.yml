@@ -5,36 +5,45 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repositório
+      - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Configurar Flutter SDK
+      - name: Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Instalar Dependências de Compilação Linux
+      - name: Build do Instalador Flutter
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          cd installer
+          flutter pub get
+          flutter build linux --release
 
-      - name: Habilitar Suporte Desktop no Flutter e Compilar
+      - name: Compactar Artefatos da Build
         run: |
-          flutter config --enable-linux-desktop
-          chmod +x build_iso.sh
-          ./build_iso.sh
+          tar -czvf IlluminateBR-OS-Build.tar.gz installer/build/linux/x64/release/bundle/ scripts/
 
-      - name: Compactar Artefatos do Build
-        run: |
-          tar -czvf illuminatebr-os-build.tar.gz iso_root/
-
-      - name: Upload do Artefato
-        uses: actions/upload-artifact@v4
+      - name: Criar Release e Fazer Upload do Artefato
+        uses: softprops/action-gh-release@v1
         with:
-          name: IlluminateBR-OS-Build
-          path: illuminatebr-os-build.tar.gz
+          tag_name: v1.0.0
+          name: "IlluminateBR-OS v1.0.0 Stable"
+          body: |
+            🚀 **Release Oficial do IlluminateBR-OS**
+
+            - Kernel Otimizado CachyOS / Base Arch Linux
+            - Interface Cinnamon com visual e efeitos estilo macOS
+            - Instalador Flutter com seletor de perfis (Dev, DevOps, Mídia)
+            - Otimizações de Ergonomia Visual e Desempenho (zRAM + CPU)
+          files: |
+            IlluminateBR-OS-Build.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
