@@ -5,12 +5,9 @@ echo "==================================================================="
 echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
 echo "==================================================================="
 
-echo "🛠️ Garantindo dependências do Host..."
+echo "🛠️ Garantindo dependências no Host..."
 sudo apt-get update -y
-sudo apt-get install -y isolinux syslinux-utils xorriso mtools grub-pc-bin grub-efi-amd64-bin
-
-# Cria link para garantir que isohybrid seja encontrado em qualquer caminho do subshell
-sudo ln -sf /usr/bin/isohybrid /usr/local/bin/isohybrid 2>/dev/null || true
+sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin syslinux-utils
 
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
@@ -48,8 +45,9 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build com GRUB..."
+echo "⚙️ Configurando o live-build com GRUB e imagem ISO pura (xorriso)..."
 lb config \
+    --binary-images iso \
     --debian-installer false \
     --mode debian \
     --architectures amd64 \
@@ -59,7 +57,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --bootloader grub \
+    --bootloader grub-efi \
     --win32-loader false
 
 mkdir -p config/package-lists/
