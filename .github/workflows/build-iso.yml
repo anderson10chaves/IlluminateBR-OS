@@ -52,21 +52,31 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git
 
+      - name: Preparar Perfil do Archiso e Copiar Arquivos
+        run: |
+          # 1. Copia o perfil base oficial do Arch Linux
+          cp -r /usr/share/archiso/configs/releng/ /tmp/archiso-profile
+
+          # 2. Copia o instalador Flutter para dentro do sistema live
+          mkdir -p /tmp/archiso-profile/airootfs/usr/bin/installer/
+          
       - name: Baixar Artefato do Instalador Flutter
         uses: actions/download-artifact@v4
         with:
           name: installer-bin
-          path: profile/airootfs/usr/bin/installer/
+          path: /tmp/archiso-profile/airootfs/usr/bin/installer/
+
+      - name: Injetar Scripts Personalizados
+        run: |
+          # 3. Copia os scripts do projeto para a raiz do live ISO
+          mkdir -p /tmp/archiso-profile/airootfs/root/IlluminateBR-OS
+          cp -r scripts /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/
+          cp -r build_iso.sh /tmp/archiso-profile/airootfs/root/IlluminateBR-OS/ 2>/dev/null || true
 
       - name: Gerar ISO bootável
         run: |
           mkdir -p /tmp/iso-out
-          if [ -d "profile" ]; then
-            mkarchiso -v -w /tmp/archiso-tmp -o /tmp/iso-out profile/
-          else
-            echo "Perfil do archiso não encontrado na pasta profile/"
-            exit 1
-          fi
+          mkarchiso -v -w /tmp/archiso-tmp -o /tmp/iso-out /tmp/archiso-profile/
 
       - name: Renomear ISO gerada
         run: |
@@ -95,7 +105,7 @@ jobs:
           body: |
             🚀 **Release Oficial do IlluminateBR-OS**
 
-            - Kernel Otimizado CachyOS / Base Arch Linux
+            - Kernel Otimizado / Base Arch Linux
             - Interface Cinnamon com visual e efeitos estilo macOS
             - Instalador Flutter com seletor de perfis (Dev, DevOps, Mídia)
             - Otimizações de Ergonomia Visual e Desempenho (zRAM + CPU)
