@@ -9,9 +9,10 @@ echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
 
 echo "⚙️ Configurando o live-build para Debian..."
+# Mudamos para --mode ubuntu mantendo a distro bookworm para ignorar o hook do Contents-amd64.gz
 lb config \
     --debian-installer false \
-    --mode debian \
+    --mode ubuntu \
     --architectures amd64 \
     --distribution bookworm \
     --archive-areas "main contrib non-free non-free-firmware" \
@@ -19,7 +20,6 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --apt-indices false \
     --bootloader syslinux \
     --win32-loader false
 
@@ -52,17 +52,19 @@ git
 zsh
 EOF
 
-# Estrutura limpa para os repositórios de segurança no Bookworm
+# Repositórios do Debian Bookworm + Segurança
 mkdir -p config/archives/
-cat << 'EOF' > config/archives/security.list.chroot
+cat << 'EOF' > config/archives/debian.list.chroot
+deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
-cat << 'EOF' > config/archives/security.list.binary
+cat << 'EOF' > config/archives/debian.list.binary
+deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 EOF
 
-# Auto-Login no LightDM
+# Configuração de Auto-Login no LightDM
 mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
