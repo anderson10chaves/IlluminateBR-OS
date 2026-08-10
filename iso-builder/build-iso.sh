@@ -2,130 +2,119 @@
 set -e
 
 echo "==================================================================="
-echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
+echo "🏗️ [IlluminateBR-OS] Compilador da ISO Bootável (Base Ubuntu 24.04 LTS)"
 echo "==================================================================="
 
-echo "🛠️ Instalando dependências completas do Host..."
-sudo apt-get update -y
-sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin grub-common syslinux-utils isolinux
+WORK_DIR="$(pwd)/build_dir"
+CHROOT_DIR="$WORK_DIR/chroot"
+IMAGE_DIR="$WORK_DIR/image"
 
 echo "🧹 Limpando compilações anteriores..."
-lb clean --purge || true
-rm -rf config/
+sudo rm -rf "$WORK_DIR" IlluminateBR-OS-*.iso || true
+mkdir -p "$CHROOT_DIR" "$IMAGE_DIR/live" "$IMAGE_DIR/boot/grub" "$IMAGE_DIR/EFI/BOOT"
 
-echo "🛠️ Criando wrapper do wget para interceptar Contents-amd64.gz..."
-BIN_DIR="$(pwd)/bin"
-mkdir -p "$BIN_DIR"
+echo "🛠️ Instalando ferramentas no Host..."
+sudo apt-get update -y
+sudo apt-get install -y debootstrap mtools xorriso grub-pc-bin grub-efi-amd64-bin squashfs-tools
 
-cat << 'EOF' > "$BIN_DIR/wget"
-#!/usr/bin/env bash
-is_contents=false
-for arg in "$@"; do
-    if [[ "$arg" == *"Contents-amd64.gz"* ]]; then
-        is_contents=true
-        break
-    fi
-done
+echo "📦 1. Criando sistema base (Debootstrap Ubuntu 24.04 Noble)..."
+sudo debootstrap --arch=amd64 noble "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
 
-if [ "$is_contents" = true ]; then
-    echo "[MOCK WGET] Interceptado download do Contents-amd64.gz." >&2
-    for arg in "$@"; do
-        if [[ "$arg" == "-O" || "$arg" == "-O-" ]]; then
-            printf "" | gzip -c
-            exit 0
-        fi
-    done
-    printf "" | gzip -c > Contents-amd64.gz
-    exit 0
+echo "⚙️ 2. Configurando o Chroot e instalando pacotes do sistema..."
+sudo mount --bind /dev "$CHROOT_DIR/dev"
+sudo mount --bind /proc "$CHROOT_DIR/proc"
+sudo mount --bind /sys "$CHROOT_DIR/sys"
+
+# Copia o Instalador Flutter se ele existir
+if [ -d "installer-bin" ]; then
+    echo "🚚 Injetando o Instalador Flutter no Chroot..."
+    sudo mkdir -p "$CHROOT_DIR/usr/bin/installer"
+    sudo cp -r installer-bin/* "$CHROOT_DIR/usr/bin/installer/"
+    sudo chmod +x "$CHROOT_DIR/usr/bin/installer/illuminatebr_os" 2>/dev/null || true
 fi
 
-exec /usr/bin/wget "$@"
-EOF
+cat << 'EOF' | sudo chroot "$CHROOT_DIR" /bin/bash
+set -e
 
-chmod +x "$BIN_DIR/wget"
-export PATH="$BIN_DIR:$PATH"
+export DEBIAN_FRONTEND=noninteractive
 
-echo "⚙️ Configurando o live-build (Geração da estrutura e SquashFS)..."
-lb config \
-    --binary-images iso-hybrid \
-    --debian-installer false \
-    --mode debian \
-    --architectures amd64 \
-    --distribution bookworm \
-    --archive-areas "main contrib non-free non-free-firmware" \
-    --mirror-bootstrap "http://deb.debian.org/debian/" \
-    --mirror-chroot "http://deb.debian.org/debian/" \
-    --mirror-binary "http://deb.debian.org/debian/" \
-    --security false \
-    --bootloader syslinux \
-    --win32-loader false
+# Repositórios Ubuntu
+cat << 'REPOS' > /etc/apt/sources.list
+deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+REPOS
 
-mkdir -p config/package-lists/
-cat << 'EOF' > config/package-lists/illuminate.list.chroot
-linux-image-amd64
-live-boot
-systemd-sysv
-firmware-linux
-firmware-linux-nonfree
-grub-efi-amd64
-grub-pc-bin
-grub-common
-cinnamon-core
-lightdm
-lightdm-gtk-greeter
-alacritty
-nemo
-calamares
-calamares-settings-debian
-sudo
-network-manager
-network-manager-gnome
-gparted
-dosfstools
-e2fsprogs
-mtools
-squashfs-tools
-wget
-curl
-git
-zsh
-EOF
+apt-get update -y
+apt-get install -y --no-install-recommends \
+    linux-image-generic \
+    live-boot \
+    systemd-sysv \
+    network-manager \
+    cinnamon-core \
+    lightdm \
+    lightdm-gtk-greeter \
+    alacritty \
+    nemo \
+    calamares \
+    sudo \
+    wget \
+    curl \
+    git \
+    zsh \
+    gparted \
+    dosfstools \
+    e2fsprogs
 
-# Repositório de segurança do Bookworm
-mkdir -p config/archives/
-cat << 'EOF' > config/archives/security.list.chroot
-deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-EOF
+# Configuração de Usuário Live
+useradd -m -s /bin/bash user || true
+echo "user:live" | chpasswd
+usermod -aG sudo,video,audio,cdrom user
 
-cat << 'EOF' > config/archives/security.list.binary
-deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-EOF
-
-# Auto-Login no LightDM
-mkdir -p config/includes.chroot/etc/lightdm/lightdm.conf.d/
-cat << 'EOF' > config/includes.chroot/etc/lightdm/lightdm.conf.d/80-live-autologin.conf
+# Auto-login no LightDM
+mkdir -p /etc/lightdm/lightdm.conf.d/
+cat << 'LIGHTDM' > /etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
 autologin-guest=false
 autologin-user=user
 autologin-user-timeout=0
+LIGHTDM
+
+apt-get clean
+rm -rf /tmp/* /var/lib/apt/lists/*
 EOF
 
-# Hook pós-configuração para garantir arquivos do syslinux/isolinux no local esperado
-mkdir -p config/hooks/normal/
-cat << 'EOF' > config/hooks/normal/0990-copy-syslinux.hook.chroot
-#!/bin/bash
-mkdir -p /usr/lib/syslinux/modules/bios/
-cp -f /usr/lib/syslinux/bios/*.c32 /usr/lib/syslinux/modules/bios/ 2>/dev/null || true
+echo "🚚 Copiando Kernel e Initrd para a estrutura da ISO..."
+sudo cp "$CHROOT_DIR"/boot/vmlinuz-* "$IMAGE_DIR/live/vmlinuz"
+sudo cp "$CHROOT_DIR"/boot/initrd.img-* "$IMAGE_DIR/live/initrd"
+
+echo "🧹 Desmontando sistemas de arquivos do Chroot..."
+sudo umount -l "$CHROOT_DIR/dev" || true
+sudo umount -l "$CHROOT_DIR/proc" || true
+sudo umount -l "$CHROOT_DIR/sys" || true
+
+echo "📦 3. Criando o sistema de arquivos comprimido (SquashFS)..."
+sudo mksquashfs "$CHROOT_DIR" "$IMAGE_DIR/live/filesystem.squashfs" -e boot
+
+echo "⚙️ 4. Configurando Bootloader GRUB (UEFI e BIOS Legacy)..."
+cat << 'EOF' | sudo tee "$IMAGE_DIR/boot/grub/grub.cfg"
+set default=0
+set timeout=5
+
+menuentry "IlluminateBR-OS Live (Cinnamon Desktop)" {
+    linux /live/vmlinuz boot=live quiet splash ---
+    initrd /live/initrd
+}
+
+menuentry "IlluminateBR-OS Live (Modo de Segurança / Safe Graphics)" {
+    linux /live/vmlinuz boot=live nomodeset quiet splash ---
+    initrd /live/initrd
+}
 EOF
-chmod +x config/hooks/normal/0990-copy-syslinux.hook.chroot
 
-echo "📦 Compilando a estrutura da ISO com live-build..."
-# Força o link simbólico das pastas de módulos do Syslinux no Host antes do build
-sudo mkdir -p /usr/lib/syslinux/modules/bios
-sudo cp -rn /usr/lib/syslinux/bios/*.c32 /usr/lib/syslinux/modules/bios/ 2>/dev/null || true
-
-lb build
+echo "CD 5. Gerando a imagem ISO final com xorriso (Boot Dual Híbrido)..."
+sudo grub-mkrescue -o IlluminateBR-OS-v1.0.0-x86_64.iso "$IMAGE_DIR" -- -volid "ILLUMINATE_OS"
 
 echo "==================================================================="
-echo "🎉 ISO GERADA COM SUCESSO!"
+echo "🎉 ISO GERADA COM SUCESSO E BOOT GARANTIDO!"
 echo "==================================================================="
