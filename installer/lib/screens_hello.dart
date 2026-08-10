@@ -26,9 +26,11 @@ class _HelloWelcomeScreenState extends State<HelloWelcomeScreen> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(milliseconds: 1800), (timer) {
-      setState(() {
-        _languageIndex = (_languageIndex + 1) % _greetings.length;
-      });
+      if (mounted) {
+        setState(() {
+          _languageIndex = (_languageIndex + 1) % _greetings.length;
+        });
+      }
     });
   }
 
@@ -73,7 +75,6 @@ class _HelloWelcomeScreenState extends State<HelloWelcomeScreen> {
                 ),
               ),
               onPressed: () {
-                // Iniciar a sessão da área de trabalho
                 Navigator.of(context).pop();
               },
               child: const Text(

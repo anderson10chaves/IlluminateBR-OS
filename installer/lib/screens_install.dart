@@ -1,19 +1,28 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 
 class InstallProgressScreen extends StatefulWidget {
-  const InstallProgressScreen({super.key});
+  final String initialProfile;
+
+  const InstallProgressScreen({super.key, this.initialProfile = 'devops'});
 
   @override
   State<InstallProgressScreen> createState() => _InstallProgressScreenState();
 }
 
 class _InstallProgressScreenState extends State<InstallProgressScreen> {
-  String _selectedProfile = 'devops'; // Padrão: Dev + DevOps
+  late String _selectedProfile;
   bool _isInstalling = false;
+  bool _isFinished = false;
+  bool _hasError = false;
   double _progress = 0.0;
   String _currentStep = 'Aguardando seleção do perfil...';
+  
+  final List<String> _logs = [];
+  final ScrollController _scrollController = ScrollController();
+  bool _isTerminalExpanded = true;
 
   final Map<String, Map<String, dynamic>> _profiles = {
     'dev': {
@@ -33,36 +42,87 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
     },
   };
 
+  @override
+  void initState() {
+    super.initState();
+    _selectedProfile = widget.initialProfile;
+  }
+
+  void _processOutputLine(String line) {
+    if (!mounted) return;
+
+    setState(() {
+      if (line.startsWith('[PROGRESS:')) {
+        final valStr = line.replaceAll('[PROGRESS:', '').replaceAll(']', '').trim();
+        final val = double.tryParse(valStr);
+        if (val != null) {
+          _progress = (val / 100.0).clamp(0.0, 1.0);
+        }
+      } else if (line.startsWith('[STEP:')) {
+        _currentStep = line.replaceAll('[STEP:', '').replaceAll(']', '').trim();
+      } else {
+        _logs.add(line);
+      }
+    });
+
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _startInstallation() async {
     setState(() {
       _isInstalling = true;
-      _progress = 0.2;
-      _currentStep = 'Iniciando instalação no perfil: ${_profiles[_selectedProfile]!['title']}...';
+      _progress = 0.02;
+      _currentStep = 'Iniciando instalação do perfil...';
+      _logs.clear();
     });
 
     try {
-      // Passa o perfil como argumento para o script Bash
-      var result = await Process.run('/bin/bash', [
-        '/usr/local/bin/setup_master_dev.sh',
-        _selectedProfile
-      ]);
+      final scriptFile = File('/usr/local/bin/setup_master_dev.sh');
+      final scriptPath = scriptFile.existsSync()
+          ? '/usr/local/bin/setup_master_dev.sh'
+          : '/home/illuminate/IlluminateBR-OS/scripts/install.sh';
 
-      if (result.exitCode == 0) {
+      final process = await Process.start(
+        'sudo',
+        [scriptPath, _selectedProfile],
+      );
+
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        _processOutputLine(line);
+      });
+
+      process.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        _processOutputLine(line);
+      });
+
+      final exitCode = await process.exitCode;
+      
+      if (mounted) {
         setState(() {
-          _progress = 1.0;
-          _currentStep = 'Instalação concluída com sucesso!';
-        });
-      } else {
-        setState(() {
-          _progress = 1.0;
-          _currentStep = 'Instalação finalizada com alguns avisos.';
+          _isFinished = true;
+          if (exitCode == 0) {
+            _progress = 1.0;
+            _currentStep = 'Instalação concluída com sucesso!';
+          } else {
+            _hasError = true;
+            _currentStep = 'Instalação finalizada com avisos/erros (Código: $exitCode).';
+          }
         });
       }
     } catch (e) {
-      setState(() {
-        _progress = 1.0;
-        _currentStep = 'Modo de demonstração: Instalação simulada!';
-      });
+      if (mounted) {
+        setState(() {
+          _isFinished = true;
+          _hasError = true;
+          _currentStep = 'Erro de execução: $e';
+        });
+      }
     }
   }
 
@@ -72,24 +132,37 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
       backgroundColor: const Color(0xFF1E1E1E),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(28.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAlignment.start,
             children: [
+              // Cabeçalho
               Row(
-                children: const [
-                  Icon(Icons.blur_on, color: Color(0xFF0066CC), size: 36),
-                  SizedBox(width: 12),
-                  Text(
+                children: [
+                  const Icon(Icons.blur_on, color: Color(0xFF0066CC), size: 36),
+                  const SizedBox(width: 12),
+                  const Text(
                     'IlluminateBR-OS',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  Spacer(),
-                  Text('Instalador Personalizado', style: TextStyle(color: Colors.grey)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0066CC).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF0066CC).withOpacity(0.5)),
+                    ),
+                    child: Text(
+                      'Perfil: ${_selectedProfile.toUpperCase()}',
+                      style: const TextStyle(color: Color(0xFF0066CC), fontWeight: FontWeight.bold),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
 
+              // Tela de Seleção
               if (!_isInstalling) ...[
                 const Text(
                   'Escolha o Perfil de Instalação:',
@@ -122,7 +195,7 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
                               const SizedBox(width: 20),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAlignment.start,
                                   children: [
                                     Text(
                                       data['title'],
@@ -158,56 +231,127 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: _startInstallation,
-                    child: const Text('Iniciar Instalação', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    child: const Text('Iniciar Instalação', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 )
-              ] else ...[
-                const Expanded(
-                  child: Center(
+              ] 
+              // Tela de Progresso + Terminal Embutido
+              else ...[
+                Card(
+                  color: const Color(0xFF2B2B2B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAlignment.start,
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF0066CC)),
-                        SizedBox(height: 24),
-                        Text(
-                          'Instalando o IlluminateBR-OS...',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _currentStep,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${(_progress * 100).toInt()}%',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0066CC)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: _progress,
+                            minHeight: 10,
+                            backgroundColor: const Color(0xFF404040),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _hasError ? Colors.redAccent : const Color(0xFF0066CC),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                const SizedBox(height: 16),
+
+                // Barra superior do Terminal
+                InkWell(
+                  onTap: () => setState(() => _isTerminalExpanded = !_isTerminalExpanded),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Text(
-                            _currentStep,
-                            style: const TextStyle(fontSize: 14, color: Colors.white),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Row(
+                          children: const [
+                            Icon(Icons.terminal, color: Colors.grey, size: 20),
+                            SizedBox(width: 8),
+                            Text('Detalhes do Shell (Terminal em Tempo Real)', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+                          ],
                         ),
-                        Text(
-                          '${(_progress * 100).toInt()}%',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0066CC)),
+                        Icon(
+                          _isTerminalExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          color: Colors.grey,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: _progress,
-                        minHeight: 12,
-                        backgroundColor: Colors.grey.shade800,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0066CC)),
+                  ),
+                ),
+
+                // Terminal Visual
+                if (_isTerminalExpanded)
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111111),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF333333)),
+                      ),
+                      padding: const EdgeInsets.all(12.0),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _logs.length,
+                        itemBuilder: (context, index) {
+                          return Text(
+                            _logs[index],
+                            style: const TextStyle(
+                              color: Color(0xFF00FF66),
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
-                ),
+                  )
+                else
+                  const Spacer(),
+
+                const SizedBox(height: 16),
+
+                if (_isFinished)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _hasError ? Colors.redAccent : const Color(0xFF0066CC),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => Process.run('reboot', []),
+                      child: Text(
+                        _hasError ? 'Reiniciar Sistema (Falha Detectada)' : 'Concluir e Reiniciar Sistema',
+                        style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),

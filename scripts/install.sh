@@ -2,199 +2,160 @@
 
 set -e
 
-# Detecta usuário real caso esteja rodando via sudo
-REAL_USER="${SUDO_USER:-$USER}"
-REAL_HOME=$(eval echo "~$REAL_USER")
+# =============================================================================
+# 🚀 ILLUMINATEBR-OS - INSTALADOR UNIFICADO COM LOGS EM TEMPO REAL
+# =============================================================================
 
-# Recebe o parâmetro ('dev', 'devops' ou 'full'). Padrão: devops
 PROFILE="${1:-devops}"
+DISC="${2:-/dev/sda}"
 
-echo "==================================================================="
-echo "🚀 [IlluminateBR-OS] Iniciando Instalação no Perfil: $PROFILE"
-echo "👤 Usuário de Instalação: $REAL_USER"
-echo "==================================================================="
-
-# Helper para executar comandos como o usuário comum
-run_as_user() {
-    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "$REAL_USER")/bus "$@"
+log_step() {
+    local percent="$1"
+    local message="$2"
+    echo "[PROGRESS:$percent]"
+    echo "[STEP:$message]"
+    echo "==================================================================="
+    echo "🚀 $message"
+    echo "==================================================================="
 }
 
 # -----------------------------------------------------------------------------
-# 0. Atualização de Chaves e Repositórios
+# ETAPA A: SE ESTIVER NO AMBIENTE LIVE (ARCHISO), INSTALAR O SO NO DISCO
 # -----------------------------------------------------------------------------
-echo "🔑 Inicializando e atualizando chaves do Arch Linux..."
-pacman-key --init || true
-pacman-key --populate archlinux || true
-pacman -Sy --noconfirm archlinux-keyring || true
+if [ -f /run/archiso/bootmnt ] || [ "$HOSTNAME" = "archiso" ] || [ "$USER" = "root" ] && [ ! -f /etc/illuminate-installed ]; then
+    log_step "5" "Ambiente Live ISO Detectado! Preparando Disco $DISC..."
+    
+    if [ ! -b "$DISC" ]; then
+        echo "❌ Erro: O disco $DISC não foi encontrado! Verifique o caminho no QEMU."
+        exit 1
+    fi
+
+    log_step "10" "Formatando e Particionando o Disco $DISC..."
+    parted -s "$DISC" mklabel gpt
+    parted -s "$DISC" mkpart ESP fat32 1MiB 512MiB
+    parted -s "$DISC" set 1 esp on
+    parted -s "$DISC" mkpart primary ext4 512MiB 100%
+
+    PART_EFI="${DISC}1"
+    PART_ROOT="${DISC}2"
+    if [[ "$DISC" == *"nvme"* ]]; then
+        PART_EFI="${DISC}p1"
+        PART_ROOT="${DISC}p2"
+    fi
+
+    mkfs.fat -F32 "$PART_EFI"
+    mkfs.ext4 -F "$PART_ROOT"
+
+    log_step "18" "Montando Partiçoes e Preparando Diretorios..."
+    mount "$PART_ROOT" /mnt
+    mkdir -p /mnt/boot
+    mount "$PART_EFI" /mnt/boot
+
+    log_step "25" "Instalando Base do Arch Linux (Pacstrap)..."
+    pacman-key --init || true
+    pacman-key --populate archlinux || true
+    pacstrap -K /mnt base linux linux-firmware base-devel git sudo bash networkmanager grub efibootmgr
+
+    genfstab -U /mnt >> /mnt/etc/fstab
+    touch /mnt/etc/illuminate-installed
+
+    log_step "40" "Configurando Usuario 'illuminate' e GRUB Bootloader..."
+    arch-chroot /mnt /bin/bash -c "
+        echo 'illuminateos' > /etc/hostname
+        systemctl enable NetworkManager
+
+        ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+        hwclock --systohc
+
+        useradd -m -G wheel,kvm,libvirt -s /bin/bash illuminate || true
+        echo 'illuminate:123456' | chpasswd
+        echo 'root:123456' | chpasswd
+        echo '%wheel ALL=(ALL:ALL) ALL' >> /etc/sudoers
+
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=IlluminateBR-OS
+        grub-mkconfig -o /boot/grub/grub.cfg
+    "
+
+    mkdir -p /mnt/home/illuminate/IlluminateBR-OS/scripts
+    cp "$0" /mnt/home/illuminate/IlluminateBR-OS/scripts/install.sh
+    chown -R illuminate:illuminate /mnt/home/illuminate/IlluminateBR-OS
+
+    log_step "50" "Iniciando Instalacao dos Pacotes do Perfil ($PROFILE)..."
+    arch-chroot /mnt /bin/bash -c "
+        cd /home/illuminate/IlluminateBR-OS/scripts
+        su illuminate -c 'bash install.sh $PROFILE system-post'
+    "
+
+    log_step "100" "IlluminateBR-OS Instalado com Sucesso no Disco!"
+    exit 0
+fi
 
 # -----------------------------------------------------------------------------
-# 1. Atualizar o sistema e repositórios
+# ETAPA B: PÓS-INSTALAÇÃO DO AMBIENTE (EXECUTADO DENTRO DO HD)
 # -----------------------------------------------------------------------------
-echo "📦 Atualizando sistema e habilitando Flathub..."
-pacman -Syu --noconfirm --overwrite '*'
 
-pacman -S --needed --noconfirm flatpak
-run_as_user flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+REAL_USER="$USER"
+REAL_HOME="$HOME"
 
-# -----------------------------------------------------------------------------
-# 2. Ergonomia Visual (Filtro de Luz Azul / Night Light)
-# -----------------------------------------------------------------------------
-echo "👁️ Configurando iluminação ergonômica..."
-run_as_user gsettings set org.cinnamon.settings-daemon.plugins.color night-light-enabled true 2>/dev/null || true
-run_as_user gsettings set org.cinnamon.settings-daemon.plugins.color night-light-temperature 3500 2>/dev/null || true
+log_step "55" "Atualizando Repositorios e Chaves do Sistema..."
+sudo pacman-key --init || true
+sudo pacman-key --populate archlinux || true
+sudo pacman -Sy --noconfirm archlinux-keyring || true
 
-# -----------------------------------------------------------------------------
-# 3. Desempenho e Memória (auto-cpufreq + zRAM)
-# -----------------------------------------------------------------------------
-echo "⚡ Otimizando desempenho do processador e memória RAM (zRAM)..."
-pacman -S --needed --noconfirm auto-cpufreq zram-generator || true
-systemctl enable --now auto-cpufreq || true
-
-bash -c 'cat <<ZRAM > /etc/systemd/zram-generator.conf
-[zram0]
-zram-size = ram / 2
-compression-algorithm = zstd
-ZRAM' || true
-
-# -----------------------------------------------------------------------------
-# 4. Virtualização e KVM
-# -----------------------------------------------------------------------------
-echo "⚡ Configurando aceleração KVM e suporte a máquinas virtuais..."
-pacman -S --needed --noconfirm qemu-full virt-manager virt-viewer dnsmasq vde2 bridge-utils iptables-nft libguestfs || true
-systemctl enable --now libvirtd || true
-usermod -aG kvm "$REAL_USER" || true
-usermod -aG libvirt "$REAL_USER" || true
-
-# -----------------------------------------------------------------------------
-# 5. Ferramentas Base, Compiladores e Utilitários CLI
-# -----------------------------------------------------------------------------
-echo "🛠️ Instalando utilitários essenciais de terminal e compiladores..."
-pacman -S --needed --noconfirm \
+sudo pacman -Syu --needed --noconfirm \
     base-devel git curl wget gcc make cmake ninja clang pkg-config \
     fastfetch htop btop tmux neovim zsh util-linux cabextract fontconfig \
     bat ripgrep fd zoxide eza flameshot copyq \
-    unzip zip tar xz fuse2 fuse3 || true
+    unzip zip tar xz fuse2 fuse3 flatpak pipewire-jack qt6-multimedia-ffmpeg || true
 
-# -----------------------------------------------------------------------------
-# 6. Runtimes Base: Java (LTS) & Web/Front-end (Node, Bun, Angular, Tailwind)
-# -----------------------------------------------------------------------------
-echo "☕ Instalando OpenJDK 21 LTS..."
-pacman -S --needed --noconfirm jdk21-openjdk openjdk21-doc openjdk21-src || true
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
-echo "🌐 Instalando ecossistema Web & Front-end..."
-pacman -S --needed --noconfirm nodejs npm yarn bun-bin html5-xml-support sass-c || true
+log_step "65" "Configurando Otimizacoes e KVM Virtualizacao..."
+sudo pacman -S --needed --noconfirm auto-cpufreq zram-generator qemu-full virt-manager virt-viewer dnsmasq vde2 bridge-utils iptables-nft libguestfs || true
+sudo systemctl enable auto-cpufreq || true
+sudo systemctl enable libvirtd || true
 
-echo "🅰️ Instalando CLIs globais (Angular, Typescript, Tailwind)..."
-npm install -g @angular/cli typescript tailwindcss live-server lighthouse || true
+log_step "72" "Instalando Java 21, Node.js e Flutter SDK..."
+sudo pacman -S --needed --noconfirm jdk21-openjdk openjdk21-doc openjdk21-src nodejs npm yarn bun-bin gtk3 postgresql mariadb-clients sqlite || true
+sudo npm install -g @angular/cli typescript tailwindcss live-server lighthouse || true
 
-# -----------------------------------------------------------------------------
-# 7. Configuração do Flutter SDK
-# -----------------------------------------------------------------------------
-echo "💙 Configurando Flutter SDK..."
-pacman -S --needed --noconfirm gtk3 || true
-
-FLUTTER_DIR="$REAL_HOME/development"
-run_as_user mkdir -p "$FLUTTER_DIR"
-
-if [ ! -d "$FLUTTER_DIR/flutter" ]; then
-    echo "⬇️ Clonando repositório do Flutter..."
-    run_as_user git clone https://github.com/flutter/flutter.git -b stable "$FLUTTER_DIR/flutter" || true
+mkdir -p "$REAL_HOME/development"
+if [ ! -d "$REAL_HOME/development/flutter" ]; then
+    git clone https://github.com/flutter/flutter.git -b stable "$REAL_HOME/development/flutter" || true
 fi
 
-config_shell_env() {
-    local file="$1"
-    if [ -f "$file" ] || [ "$file" = "$REAL_HOME/.bashrc" ]; then
-        touch "$file"
-        chown "$REAL_USER:$REAL_USER" "$file"
-        if ! grep -q 'flutter/bin' "$file"; then
-            echo '' >> "$file"
-            echo '# Flutter & Android SDK Path' >> "$file"
-            echo 'export PATH="$HOME/development/flutter/bin:$PATH"' >> "$file"
-            echo 'export ANDROID_HOME="$HOME/Android/Sdk"' >> "$file"
-            echo 'export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools"' >> "$file"
-        fi
-    fi
-}
-
-config_shell_env "$REAL_HOME/.bashrc"
-config_shell_env "$REAL_HOME/.zshrc"
-
-export PATH="$FLUTTER_DIR/flutter/bin:$PATH"
-
-# -----------------------------------------------------------------------------
-# 8. Bancos de Dados Base
-# -----------------------------------------------------------------------------
-echo "🐘 Configurando serviços de Bancos de Dados..."
-pacman -S --needed --noconfirm postgresql mariadb-clients sqlite || true
-
-if [ ! -d "/var/lib/postgres/data/base" ]; then
-    sudo -u postgres initdb -D /var/lib/postgres/data || true
-fi
-systemctl enable --now postgresql || true
-
-# =============================================================================
-# PERFIL: DEVOPS & INFRAESTRUTURA (Executado para 'devops' e 'full')
-# =============================================================================
+log_step "80" "Configurando Ferramentas DevOps e Containers..."
 if [ "$PROFILE" = "devops" ] || [ "$PROFILE" = "full" ]; then
-    echo "☁️ [Módulo DevOps] Instalando Docker, Kubernetes, Terraform, AWS CLI e Redes..."
-    pacman -S --needed --noconfirm \
+    sudo pacman -S --needed --noconfirm \
         docker containerd docker-buildx docker-compose podman \
-        kubectl helm terraform ansible \
-        aws-cli nmap wireshark-qt wireguard-tools || true
+        kubectl helm terraform ansible aws-cli nmap wireshark-qt wireguard-tools || true
 
-    systemctl enable --now docker || true
-    groupadd -f docker || true
-    usermod -aG docker "$REAL_USER" || true
+    sudo systemctl enable docker || true
+    sudo usermod -aG docker "$REAL_USER" || true
 fi
 
-# =============================================================================
-# PERFIL: CRIAÇÃO DE CONTEÚDO & MÍDIA (Executado apenas para 'full')
-# =============================================================================
-if [ "$PROFILE" = "full" ]; then
-    echo "🎥 [Módulo Mídia/Marketing] Instalando OBS, Kdenlive, Blender, GIMP, Inkscape e Audacity..."
-    pacman -S --needed --noconfirm \
-        obs-studio kdenlive shotcut \
-        audacity gimp inkscape krita blender \
-        ffmpeg || true
-fi
-
-# -----------------------------------------------------------------------------
-# 9. Verificação e Instalação do Auxiliar AUR (paru)
-# -----------------------------------------------------------------------------
-if ! run_as_user command -v paru &> /dev/null; then
-    echo "📦 Compilando e instalando helper do AUR (paru)..."
+log_step "88" "Compilando Helper AUR (paru) e Instalando Apps..."
+if ! command -v paru &> /dev/null; then
     rm -rf /tmp/paru
-    run_as_user git clone https://aur.archlinux.org/paru.git /tmp/paru
-    (cd /tmp/paru && run_as_user makepkg -si --noconfirm) || true
+    git clone https://aur.archlinux.org/paru.git /tmp/paru
+    (cd /tmp/paru && makepkg -si --noconfirm) || true
     rm -rf /tmp/paru
 fi
 
-# -----------------------------------------------------------------------------
-# 10. Aplicativos Desktop, IDEs & Produtividade
-# -----------------------------------------------------------------------------
-echo "📧 Instalando aplicativos de produtividade e navegadores..."
-pacman -S --needed --noconfirm thunderbird libreoffice-fresh libreoffice-fresh-pt-br ttf-jetbrains-mono ttf-fira-code || true
+sudo pacman -S --needed --noconfirm thunderbird libreoffice-fresh libreoffice-fresh-pt-br ttf-jetbrains-mono ttf-fira-code || true
+if command -v paru &> /dev/null; then
+    paru -S --needed --noconfirm ttf-ms-fonts google-chrome visual-studio-code-bin || true
+fi
 
-run_as_user paru -S --needed --noconfirm ttf-ms-fonts google-chrome visual-studio-code-bin || true
+log_step "94" "Instalando Cursor IDE e Pacotes Flatpak..."
+mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications"
+curl -L "https://downloader.cursor.sh/linux/appImage/x64" -o "$REAL_HOME/.local/bin/cursor.AppImage" || true
+chmod +x "$REAL_HOME/.local/bin/cursor.AppImage" || true
 
-# Cursor IDE (AppImage)
-echo "🤖 Instalando Cursor IDE..."
-CURSOR_DIR="$REAL_HOME/.local/bin"
-run_as_user mkdir -p "$CURSOR_DIR" "$REAL_HOME/.local/share/applications"
+flatpak install -y flathub com.google.AndroidStudio io.dbeaver.DBeaverCommunity usebruno.Bruno || true
 
-run_as_user curl -L "https://downloader.cursor.sh/linux/appImage/x64" -o "$CURSOR_DIR/cursor.AppImage" || true
-chmod +x "$CURSOR_DIR/cursor.AppImage" || true
+log_step "98" "Configurando Interface Grafica Cinnamon e Display Manager..."
+sudo pacman -S --needed --noconfirm cinnamon lightdm-slick-greeter starship || true
+sudo systemctl enable lightdm || true
 
-cat <<EOF > "$REAL_HOME/.local/share/applications/cursor.desktop"
-[Desktop Entry]
-Name=Cursor
-Exec=$CURSOR_DIR/cursor.AppImage --no-sandbox %U
-Terminal=false
-Type=Application
-Icon=code
-StartupWMClass=Cursor
-Comment=AI-first Code Editor
-Categories=Development;IDE;
-EOF
-
-chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local"
+log_step "100" "Ambiente Concluido com Sucesso!"
