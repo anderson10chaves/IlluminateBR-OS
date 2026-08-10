@@ -134,7 +134,7 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
         child: Padding(
           padding: const EdgeInsets.all(28.0),
           child: Column(
-            crossAxisAlignment: CrossAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Cabeçalho
               Row(
@@ -195,7 +195,7 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
                               const SizedBox(width: 20),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       data['title'],
@@ -243,7 +243,7 @@ class _InstallProgressScreenState extends State<InstallProgressScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
-                      crossAxisAlignment: CrossAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
