@@ -92,26 +92,28 @@ if [ -f /etc/pam.d/lightdm-autologin ]; then
 fi
 
 # ---------------------------------------------------------------------
-# 🛠️ SCRIPT DE LEITURA DOS MODOS DO GRUB NO BOOT
+# 🛠️ SCRIPT DE LEITURA DOS PERFIS DO GRUB NO BOOT
 # ---------------------------------------------------------------------
 cat << 'PROFILE_SCRIPT' > /usr/local/bin/illuminate-profile-loader
 #!/usr/bin/env bash
 CMDLINE=$(cat /proc/cmdline)
 
-if [[ "$CMDLINE" == *"mode=dev"* ]]; then
-    echo "🚀 Modo Dev Detectado! Instalando pacotes de Desenvolvimento..."
-    apt-get update && apt-get install -y git curl build-essential python3 python3-pip
-elif [[ "$CMDLINE" == *"mode=games"* ]]; then
-    echo "🎮 Modo Games Detectado! Configurando otimizações para Jogos..."
-    apt-get update && apt-get install -y mesa-utils vulkan-tools
-elif [[ "$CMDLINE" == *"mode=installer"* ]]; then
-    echo "🖥️ Modo Instalador Direto Detectado!"
+if [[ "$CMDLINE" == *"mode=installer"* ]]; then
+    echo "🖥️ Modo Instalador Detectado!"
     mkdir -p /home/user/.config/autostart
-    cat << 'AUTOSTART' > /home/user/.config/autostart/installer.desktop
+    
+    SELECTED_PROFILE="devops"
+    if [[ "$CMDLINE" == *"profile=dev"* ]]; then
+        SELECTED_PROFILE="dev"
+    elif [[ "$CMDLINE" == *"profile=full"* ]]; then
+        SELECTED_PROFILE="full"
+    fi
+
+    cat << AUTOSTART > /home/user/.config/autostart/installer.desktop
 [Desktop Entry]
 Type=Application
 Name=IlluminateBR-OS Installer
-Exec=/usr/bin/installer/illuminatebr_os
+Exec=/usr/bin/installer/illuminatebr_os --profile $SELECTED_PROFILE
 AUTOSTART
     chown -R user:user /home/user/.config
 fi
@@ -187,23 +189,23 @@ insmod gfxterm
 set gfxmode=auto
 terminal_output gfxterm
 
-menuentry "IlluminateBR-OS Live (Cinnamon Desktop)" {
+menuentry "IlluminateBR-OS Live (Sessao de Teste Live)" {
     linux /live/vmlinuz boot=live quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "IlluminateBR-OS (Modo Desenvolvedor / Dev Tools)" {
-    linux /live/vmlinuz boot=live mode=dev quiet splash ---
+menuentry "IlluminateBR-OS (Instalar Perfil: Apenas Dev)" {
+    linux /live/vmlinuz boot=live mode=installer profile=dev quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "IlluminateBR-OS (Modo Games / Jogos)" {
-    linux /live/vmlinuz boot=live mode=games quiet splash ---
+menuentry "IlluminateBR-OS (Instalar Perfil: Dev + DevOps & Infra)" {
+    linux /live/vmlinuz boot=live mode=installer profile=devops quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "IlluminateBR-OS (Iniciar Direto no Instalador)" {
-    linux /live/vmlinuz boot=live mode=installer quiet splash ---
+menuentry "IlluminateBR-OS (Instalar Perfil: Completo - Dev + Midia)" {
+    linux /live/vmlinuz boot=live mode=installer profile=full quiet splash ---
     initrd /live/initrd
 }
 
@@ -225,5 +227,5 @@ echo "💿 5. Gerando a imagem ISO final com xorriso (Boot Dual Híbrido)..."
 sudo grub-mkrescue -o IlluminateBR-OS-v1.0.0-x86_64.iso "$IMAGE_DIR" -- -volid "ILLUMINATE_OS"
 
 echo "==================================================================="
-echo "🎉 ISO GERADA COM SUCESSO! MODOS DO GRUB INTEGARDOS AO SISTEMA!"
+echo "🎉 ISO GERADA COM SUCESSO! GRUB E INSTALADOR COM PERFIS ALINHADOS!"
 echo "==================================================================="

@@ -151,7 +151,7 @@ fi
 # PERFIL: CRIAÇÃO DE CONTEÚDO & MÍDIA (Executado apenas para 'full')
 # =============================================================================
 if [ "$PROFILE" = "full" ]; then
-    echo "🎥 [Módulo Mídia/Marketing] Instalando OBS, Kdenlive, Blender, GIMP e Editores..."
+    echo "🎥 [Módulo Mídia/Marketing] Instalando OBS, Kdenlive, Blender, GIMP, Inkscape e Audacity..."
     pacman -S --needed --noconfirm \
         obs-studio kdenlive shotcut \
         audacity gimp inkscape krita blender \
@@ -175,7 +175,6 @@ fi
 echo "📧 Instalando aplicativos de produtividade e navegadores..."
 pacman -S --needed --noconfirm thunderbird libreoffice-fresh libreoffice-fresh-pt-br ttf-jetbrains-mono ttf-fira-code || true
 
-# Fontes MS, Chrome e VS Code via AUR usando paru sem privilégios de root direto
 run_as_user paru -S --needed --noconfirm ttf-ms-fonts google-chrome visual-studio-code-bin || true
 
 # Cursor IDE (AppImage)
@@ -196,3 +195,6 @@ Icon=code
 StartupWMClass=Cursor
 Comment=AI-first Code Editor
 Categories=Development;IDE;
+EOF
+
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local"
