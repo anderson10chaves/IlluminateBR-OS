@@ -5,9 +5,9 @@ echo "==================================================================="
 echo "🏗️ [IlluminateBR-OS] Compilador de ISO (Base Debian Live)"
 echo "==================================================================="
 
-echo "🛠️ Garantindo dependências no Host..."
+echo "🛠️ Instalando dependências completas do Host..."
 sudo apt-get update -y
-sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin grub-common
+sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin grub-common syslinux-utils isolinux
 
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
@@ -45,9 +45,9 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build com GRUB Dual (EFI + BIOS)..."
+echo "⚙️ Configurando o live-build (Geração da estrutura e SquashFS)..."
 lb config \
-    --binary-images iso \
+    --binary-images iso-hybrid \
     --debian-installer false \
     --mode debian \
     --architectures amd64 \
@@ -57,7 +57,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --bootloader grub-pc,grub-efi \
+    --bootloader syslinux \
     --win32-loader false
 
 mkdir -p config/package-lists/
@@ -110,7 +110,20 @@ autologin-user=user
 autologin-user-timeout=0
 EOF
 
-echo "📦 Iniciando compilação da ISO..."
+# Hook pós-configuração para garantir arquivos do syslinux/isolinux no local esperado
+mkdir -p config/hooks/normal/
+cat << 'EOF' > config/hooks/normal/0990-copy-syslinux.hook.chroot
+#!/bin/bash
+mkdir -p /usr/lib/syslinux/modules/bios/
+cp -f /usr/lib/syslinux/bios/*.c32 /usr/lib/syslinux/modules/bios/ 2>/dev/null || true
+EOF
+chmod +x config/hooks/normal/0990-copy-syslinux.hook.chroot
+
+echo "📦 Compilando a estrutura da ISO com live-build..."
+# Força o link simbólico das pastas de módulos do Syslinux no Host antes do build
+sudo mkdir -p /usr/lib/syslinux/modules/bios
+sudo cp -rn /usr/lib/syslinux/bios/*.c32 /usr/lib/syslinux/modules/bios/ 2>/dev/null || true
+
 lb build
 
 echo "==================================================================="
