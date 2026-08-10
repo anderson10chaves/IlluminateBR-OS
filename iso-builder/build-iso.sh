@@ -66,10 +66,12 @@ apt-get install -y --no-install-recommends \
     dosfstools \
     e2fsprogs
 
-# Configuração de Usuário Live
+# Configuração do Usuário Live com Auto-Login sem Senha
+groupadd -r nopasswdlogin || true
 useradd -m -s /bin/bash user || true
 echo "user:live" | chpasswd
-usermod -aG sudo,video,audio,cdrom user
+passwd -d user || true
+usermod -aG sudo,video,audio,cdrom,nopasswdlogin user
 
 # Auto-login no LightDM
 mkdir -p /etc/lightdm/lightdm.conf.d/
@@ -78,6 +80,7 @@ cat << 'LIGHTDM' > /etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 autologin-guest=false
 autologin-user=user
 autologin-user-timeout=0
+autologin-nopasswd=true
 LIGHTDM
 
 apt-get clean
@@ -96,25 +99,48 @@ sudo umount -l "$CHROOT_DIR/sys" || true
 echo "📦 3. Criando o sistema de arquivos comprimido (SquashFS)..."
 sudo mksquashfs "$CHROOT_DIR" "$IMAGE_DIR/live/filesystem.squashfs" -e boot
 
-echo "⚙️ 4. Configurando Bootloader GRUB (UEFI e BIOS Legacy)..."
+echo "⚙️ 4. Configurando Bootloader GRUB com TODOS os modos de Boot..."
 cat << 'EOF' | sudo tee "$IMAGE_DIR/boot/grub/grub.cfg"
 set default=0
-set timeout=5
+set timeout=10
 
-menuentry "IlluminateBR-OS Live (Cinnamon Desktop)" {
+insmod all_video
+insmod gfxterm
+set gfxmode=auto
+terminal_output gfxterm
+
+menuentry "🚀 IlluminateBR-OS Live (Cinnamon Desktop)" {
     linux /live/vmlinuz boot=live quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "IlluminateBR-OS Live (Modo de Segurança / Safe Graphics)" {
+menuentry "🛡️ IlluminateBR-OS Live (Safe Graphics / Modo de Segurança)" {
     linux /live/vmlinuz boot=live nomodeset quiet splash ---
     initrd /live/initrd
 }
+
+menuentry "💻 IlluminateBR-OS (Iniciar Direto no Instalador)" {
+    linux /live/vmlinuz boot=live quiet splash systemd.unit=multi-user.target ---
+    initrd /live/initrd
+}
+
+menuentry "🖥️ IlluminateBR-OS (Modo Terminal / CLI Only)" {
+    linux /live/vmlinuz boot=live systemd.unit=multi-user.target ---
+    initrd /live/initrd
+}
+
+menuentry "🔄 Reiniciar Sistema" {
+    reboot
+}
+
+menuentry "⚡ Desligar Computador" {
+    halt
+}
 EOF
 
-echo "CD 5. Gerando a imagem ISO final com xorriso (Boot Dual Híbrido)..."
+echo "💿 5. Gerando a imagem ISO final com xorriso (Boot Dual Híbrido)..."
 sudo grub-mkrescue -o IlluminateBR-OS-v1.0.0-x86_64.iso "$IMAGE_DIR" -- -volid "ILLUMINATE_OS"
 
 echo "==================================================================="
-echo "🎉 ISO GERADA COM SUCESSO E BOOT GARANTIDO!"
+echo "🎉 ISO GERADA COM SUCESSO! MODOS LIVE, SAFE, INSTALLER E CLI DISPONÍVEIS!"
 echo "==================================================================="
