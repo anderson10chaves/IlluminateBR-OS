@@ -64,16 +64,19 @@ apt-get install -y --no-install-recommends \
     zsh \
     gparted \
     dosfstools \
-    e2fsprogs
+    e2fsprogs \
+    build-essential
 
-# Configuração do Usuário Live com Auto-Login sem Senha
+# Remover tema do Debian
+apt-get purge -y plymouth-theme-debian-bfi desktop-base || true
+
+# Criar usuário live com permissão nopasswdlogin e autologin no LightDM
 groupadd -r nopasswdlogin || true
 useradd -m -s /bin/bash user || true
 echo "user:live" | chpasswd
 passwd -d user || true
 usermod -aG sudo,video,audio,cdrom,nopasswdlogin user
 
-# Auto-login no LightDM
 mkdir -p /etc/lightdm/lightdm.conf.d/
 cat << 'LIGHTDM' > /etc/lightdm/lightdm.conf.d/80-live-autologin.conf
 [Seat:*]
@@ -81,7 +84,82 @@ autologin-guest=false
 autologin-user=user
 autologin-user-timeout=0
 autologin-nopasswd=true
+user-session=cinnamon
 LIGHTDM
+
+if [ -f /etc/pam.d/lightdm-autologin ]; then
+    sed -i '1i auth sufficient pam_succeed_if.so user = user' /etc/pam.d/lightdm-autologin
+fi
+
+# ---------------------------------------------------------------------
+# 🛠️ SCRIPT DE LEITURA DOS MODOS DO GRUB NO BOOT
+# ---------------------------------------------------------------------
+cat << 'PROFILE_SCRIPT' > /usr/local/bin/illuminate-profile-loader
+#!/usr/bin/env bash
+CMDLINE=$(cat /proc/cmdline)
+
+if [[ "$CMDLINE" == *"mode=dev"* ]]; then
+    echo "🚀 Modo Dev Detectado! Instalando pacotes de Desenvolvimento..."
+    apt-get update && apt-get install -y git curl build-essential python3 python3-pip
+elif [[ "$CMDLINE" == *"mode=games"* ]]; then
+    echo "🎮 Modo Games Detectado! Configurando otimizações para Jogos..."
+    apt-get update && apt-get install -y mesa-utils vulkan-tools
+elif [[ "$CMDLINE" == *"mode=installer"* ]]; then
+    echo "🖥️ Modo Instalador Direto Detectado!"
+    mkdir -p /home/user/.config/autostart
+    cat << 'AUTOSTART' > /home/user/.config/autostart/installer.desktop
+[Desktop Entry]
+Type=Application
+Name=IlluminateBR-OS Installer
+Exec=/usr/bin/installer/illuminatebr_os
+AUTOSTART
+    chown -R user:user /home/user/.config
+fi
+PROFILE_SCRIPT
+
+chmod +x /usr/local/bin/illuminate-profile-loader
+
+# Configura Serviço Systemd para rodar o perfil no Boot
+cat << 'SERVICE' > /etc/systemd/system/illuminate-profile.service
+[Unit]
+Description=IlluminateBR OS Boot Profile Executor
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/illuminate-profile-loader
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl enable illuminate-profile.service
+
+# Atalho do Instalador na Área de Trabalho
+mkdir -p /home/user/Desktop /usr/share/applications
+
+if [ -f "/usr/bin/installer/illuminatebr_os" ]; then
+    INSTALL_EXEC="/usr/bin/installer/illuminatebr_os"
+else
+    INSTALL_EXEC="sudo calamares"
+fi
+
+cat << DESKTOP > /home/user/Desktop/install-illuminate.desktop
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Instalar IlluminateBR-OS
+Comment=Instale o IlluminateBR-OS de forma simples no seu disco
+Exec=$INSTALL_EXEC
+Icon=system-software-install
+Terminal=false
+Categories=System;
+DESKTOP
+
+cp /home/user/Desktop/install-illuminate.desktop /usr/share/applications/
+chmod +x /home/user/Desktop/install-illuminate.desktop /usr/share/applications/install-illuminate.desktop
+chown -R user:user /home/user/Desktop
 
 apt-get clean
 rm -rf /tmp/* /var/lib/apt/lists/*
@@ -99,7 +177,7 @@ sudo umount -l "$CHROOT_DIR/sys" || true
 echo "📦 3. Criando o sistema de arquivos comprimido (SquashFS)..."
 sudo mksquashfs "$CHROOT_DIR" "$IMAGE_DIR/live/filesystem.squashfs" -e boot
 
-echo "⚙️ 4. Configurando Bootloader GRUB com TODOS os modos de Boot..."
+echo "⚙️ 4. Configurando Bootloader GRUB..."
 cat << 'EOF' | sudo tee "$IMAGE_DIR/boot/grub/grub.cfg"
 set default=0
 set timeout=10
@@ -109,31 +187,36 @@ insmod gfxterm
 set gfxmode=auto
 terminal_output gfxterm
 
-menuentry "🚀 IlluminateBR-OS Live (Cinnamon Desktop)" {
+menuentry "IlluminateBR-OS Live (Cinnamon Desktop)" {
     linux /live/vmlinuz boot=live quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "🛡️ IlluminateBR-OS Live (Safe Graphics / Modo de Segurança)" {
+menuentry "IlluminateBR-OS (Modo Desenvolvedor / Dev Tools)" {
+    linux /live/vmlinuz boot=live mode=dev quiet splash ---
+    initrd /live/initrd
+}
+
+menuentry "IlluminateBR-OS (Modo Games / Jogos)" {
+    linux /live/vmlinuz boot=live mode=games quiet splash ---
+    initrd /live/initrd
+}
+
+menuentry "IlluminateBR-OS (Iniciar Direto no Instalador)" {
+    linux /live/vmlinuz boot=live mode=installer quiet splash ---
+    initrd /live/initrd
+}
+
+menuentry "IlluminateBR-OS (Modo de Seguranca / Safe Graphics)" {
     linux /live/vmlinuz boot=live nomodeset quiet splash ---
     initrd /live/initrd
 }
 
-menuentry "💻 IlluminateBR-OS (Iniciar Direto no Instalador)" {
-    linux /live/vmlinuz boot=live quiet splash systemd.unit=multi-user.target ---
-    initrd /live/initrd
-}
-
-menuentry "🖥️ IlluminateBR-OS (Modo Terminal / CLI Only)" {
-    linux /live/vmlinuz boot=live systemd.unit=multi-user.target ---
-    initrd /live/initrd
-}
-
-menuentry "🔄 Reiniciar Sistema" {
+menuentry "Reiniciar Sistema" {
     reboot
 }
 
-menuentry "⚡ Desligar Computador" {
+menuentry "Desligar Computador" {
     halt
 }
 EOF
@@ -142,5 +225,5 @@ echo "💿 5. Gerando a imagem ISO final com xorriso (Boot Dual Híbrido)..."
 sudo grub-mkrescue -o IlluminateBR-OS-v1.0.0-x86_64.iso "$IMAGE_DIR" -- -volid "ILLUMINATE_OS"
 
 echo "==================================================================="
-echo "🎉 ISO GERADA COM SUCESSO! MODOS LIVE, SAFE, INSTALLER E CLI DISPONÍVEIS!"
+echo "🎉 ISO GERADA COM SUCESSO! MODOS DO GRUB INTEGARDOS AO SISTEMA!"
 echo "==================================================================="
