@@ -7,7 +7,7 @@ echo "==================================================================="
 
 echo "🛠️ Garantindo dependências no Host..."
 sudo apt-get update -y
-sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin syslinux-utils
+sudo apt-get install -y live-build xorriso mtools grub-pc-bin grub-efi-amd64-bin syslinux-utils isolinux
 
 echo "🧹 Limpando compilações anteriores..."
 lb clean --purge || true
@@ -45,9 +45,9 @@ EOF
 chmod +x "$BIN_DIR/wget"
 export PATH="$BIN_DIR:$PATH"
 
-echo "⚙️ Configurando o live-build com GRUB e imagem ISO pura (xorriso)..."
+echo "⚙️ Configurando o live-build híbrido (BIOS + UEFI)..."
 lb config \
-    --binary-images iso \
+    --binary-images iso-hybrid \
     --debian-installer false \
     --mode debian \
     --architectures amd64 \
@@ -57,7 +57,7 @@ lb config \
     --mirror-chroot "http://deb.debian.org/debian/" \
     --mirror-binary "http://deb.debian.org/debian/" \
     --security false \
-    --bootloader grub-efi \
+    --bootloader syslinux,grub-efi \
     --win32-loader false
 
 mkdir -p config/package-lists/
