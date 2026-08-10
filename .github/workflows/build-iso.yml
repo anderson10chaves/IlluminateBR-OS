@@ -44,22 +44,26 @@ jobs:
       - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Instalar Dependências do Debian Live-Build e Bootloaders no Host
+      - name: Instalar Dependências no Host
         run: |
           sudo apt-get update
-          sudo apt-get install -y live-build debootstrap systemd-container isolinux syslinux-utils xorriso mtools grub-pc-bin grub-efi-amd64-bin
+          sudo apt-get install -y debootstrap mtools xorriso grub-pc-bin grub-efi-amd64-bin squashfs-tools
+
+      - name: Criar diretório do Instalador no Live System
+        run: |
+          mkdir -p iso-builder/installer-bin/
 
       - name: Baixar Artefato do Instalador Flutter
         uses: actions/download-artifact@v4
         with:
           name: installer-bin
-          path: iso-builder/config/includes.chroot/usr/bin/installer/
+          path: iso-builder/installer-bin/
 
-      - name: Gerar ISO bootável (Debian Base)
+      - name: Gerar ISO bootável (Ubuntu Noble Base)
         run: |
           cd iso-builder
           chmod +x build-iso.sh
-          chmod +x config/includes.chroot/usr/bin/installer/illuminatebr_os 2>/dev/null || true
+          chmod +x installer-bin/illuminatebr_os 2>/dev/null || true
           sudo -E PATH="$PATH" ./build-iso.sh
 
       - name: Mover e Renomear ISO Gerada
@@ -89,9 +93,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v1.0.0
-          name: "IlluminateBR-OS v1.0.0 Stable (Debian)"
+          name: "IlluminateBR-OS v1.0.0 Stable (Ubuntu Base)"
           body: |
-            🚀 **Release Oficial do IlluminateBR-OS (Debian Bookworm + Calamares)**
+            🚀 **Release Oficial do IlluminateBR-OS (Ubuntu 24.04 LTS Base + Cinnamon Desktop)**
           files: |
             IlluminateBR-OS-v1.0.0-x86_64.iso
         env:
